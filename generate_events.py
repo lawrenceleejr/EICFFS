@@ -95,7 +95,10 @@ def init_pythia(args):
     # compatibility with builds that may expose alternate capitalization.
     if not cfg(f"PhaseSpace:Q2Max = {args.Q2max}"):
         if not cfg(f"PhaseSpace:Q2max = {args.Q2max}"):
-            sys.exit("Pythia8 does not recognize either PhaseSpace:Q2Max or PhaseSpace:Q2max.")
+            sys.exit(
+                "Pythia8 does not recognize PhaseSpace:Q2Max/Q2max. "
+                "Check your installed Pythia8 version and available settings."
+            )
 
     # ── PDF ─────────────────────────────────────────────────────────────────
     # PDF set 13 = NNPDF2.3 QCD+QED LO in Pythia 8.2+.
