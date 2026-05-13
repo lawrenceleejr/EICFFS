@@ -102,7 +102,8 @@ def init_pythia(args):
     if not configured_q2max:
         sys.exit(
             "Pythia8 does not recognize PhaseSpace:Q2Max/Q2max. "
-            "Check your installed Pythia8 version and available settings."
+            "Check your installed Pythia8 version and available settings "
+            "(see the Pythia8 settings manual and your local Settings list)."
         )
 
     # ── PDF ─────────────────────────────────────────────────────────────────
