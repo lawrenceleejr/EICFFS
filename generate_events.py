@@ -70,7 +70,7 @@ def init_pythia(args):
     pythia = pythia8.Pythia()
 
     def cfg(s):
-        pythia.readString(s)
+        return pythia.readString(s)
 
     # ── Output verbosity ────────────────────────────────────────────────────
     if args.quiet:
@@ -91,7 +91,11 @@ def init_pythia(args):
 
     # ── Phase-space cuts ────────────────────────────────────────────────────
     cfg(f"PhaseSpace:Q2min = {args.Q2min}")
-    cfg(f"PhaseSpace:Q2max = {args.Q2max}")
+    # Pythia uses Q2Max (capital M) in most versions; keep a fallback for
+    # compatibility with builds that may expose alternate capitalization.
+    if not cfg(f"PhaseSpace:Q2Max = {args.Q2max}"):
+        if not cfg(f"PhaseSpace:Q2max = {args.Q2max}"):
+            sys.exit("Pythia8 does not recognize either PhaseSpace:Q2Max or PhaseSpace:Q2max.")
 
     # ── PDF ─────────────────────────────────────────────────────────────────
     # PDF set 13 = NNPDF2.3 QCD+QED LO in Pythia 8.2+.
