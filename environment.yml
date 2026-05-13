@@ -1,0 +1,22 @@
+name: eicffs
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pythia8>=8.309
+  - fastjet>=3.4
+  - uproot>=5
+  - awkward>=2
+  - vector>=1
+  - numpy
+  - matplotlib>=3.8
+  - scipy
+  - hist>=2.7
+  - particle
+  - tqdm
+  - pyarrow
+  - pandas
+  - pip
+  - pip:
+      - mplhep

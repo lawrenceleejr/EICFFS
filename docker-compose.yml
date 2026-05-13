@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  eicffs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: eicffs:latest
+    volumes:
+      # Mount local data directory for output persistence
+      - ./data:/work/data
+      - ./plots:/work/plots
+    environment:
+      - PYTHIA8DATA=/opt/conda/share/Pythia8/xmldoc
+    command: /work/run.sh
+
+  # Run only event generation
+  generate:
+    image: eicffs:latest
+    volumes:
+      - ./data:/work/data
+    environment:
+      - PYTHIA8DATA=/opt/conda/share/Pythia8/xmldoc
+    command: >
+      python generate_events.py
+        --n-events 200000
+        --output /work/data/events.parquet
+        --quiet
+
+  # Run only analysis
+  analyze:
+    image: eicffs:latest
+    volumes:
+      - ./data:/work/data
+    command: >
+      python analyze_events.py
+        /work/data/events.parquet
+        --output /work/data/histograms.root
+
+  # Run only plotting
+  plot:
+    image: eicffs:latest
+    volumes:
+      - ./data:/work/data
+      - ./plots:/work/plots
+    command: >
+      python make_plots.py
+        /work/data/histograms.root
+        --outdir /work/plots
