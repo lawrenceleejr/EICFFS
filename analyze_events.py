@@ -4,14 +4,26 @@ FFS Effect Analysis Script
 ===========================
 Reads particle-level EIC DIS events (Parquet) produced by generate_events.py,
 reconstructs jet observables, and measures the Frame-dependent Fragmentation
-Shift (FFS) effect:
+Shift (FFS) effect.
 
-    ⟨N_charged constituents per jet⟩  vs  W  (for fixed lab-frame jet |p|)
+Primary observable
+------------------
+n₉₀ — the *fractional* minimum number of jet constituents (ordered by
+decreasing 3-momentum magnitude) needed to account for 90% of the jet's
+total momentum.  A per-jet linear interpolation is used so that n₉₀ is
+a continuous quantity (e.g. 3.7 particles).  This exactly mirrors the n_x
+observable defined in arXiv:2308.10951 Sec. 2.
 
-The FFS prediction is that, for fixed lab-frame momentum, the constituent
-multiplicity grows with W because higher W corresponds to a larger boost
-between the lab and the photon-proton colour-rest frame — so the same lab
-object traces a different part of the fragmentation function.
+The FFS prediction: at fixed lab-frame jet |p|, the colour rest frame
+(the γ*p CM frame, characterised by W) is more boosted relative to the
+lab at higher W.  Therefore the same lab-frame jet corresponds to a lower
+CM-frame momentum at higher W → fewer particles needed to carry 90% of
+the jet energy → ⟨n₉₀⟩ varies with W at fixed |p_lab|.
+
+Secondary observable
+--------------------
+N_charged — simple count of charged jet constituents (IRC unsafe, but
+widely used in practice as discussed in the paper).
 
 Histograms are written to a ROOT file via uproot.
 
@@ -20,7 +32,7 @@ Usage
     python analyze_events.py data/events.parquet [--output data/histograms.root]
     python analyze_events.py data/events.parquet --use-fastjet
 
-Reference: arXiv:2308.10951
+Reference: arXiv:2308.10951  (Phys.Lett.B 866, 2025, 139561)
 """
 
 import argparse
@@ -51,10 +63,71 @@ P_LAB_BINS = np.array([2.0, 5.0, 10.0, 20.0], dtype=float)
 NMAX = 60
 N_BINS = np.arange(0, NMAX + 1, dtype=float)
 
+# n_90 observable axis — fractional number of particles for 90% of jet |p|
+# Values typically 1–10 for R=0.4 anti-kt DIS jets at EIC energies
+N90_MAX  = 25.0
+N90_BINS = 50
+
 # Jet finding parameters
-JET_R = 0.8          # anti-kt cone radius
+JET_R = 0.4          # anti-kt cone radius (matches paper: arXiv:2308.10951)
 JET_ETA_MAX = 3.5    # EIC detector acceptance
 JET_PT_MIN = 2.0     # GeV
+
+
+
+# ---------------------------------------------------------------------------
+# n_x observable (paper's primary FFS quantity)
+# ---------------------------------------------------------------------------
+
+def compute_n_x(const_pmags, threshold=0.90):
+    """
+    Compute fractional n_x: the minimum (fractional) number of jet
+    constituents needed to account for *threshold* of the jet's total
+    3-momentum magnitude.
+
+    Algorithm (per arXiv:2308.10951 Sec. 2):
+      1. Sort constituents by decreasing |p|.
+      2. Cumulatively sum |p| values normalised to the jet total.
+      3. Use linear interpolation to obtain a non-integer result.
+
+    Parameters
+    ----------
+    const_pmags : array-like
+        3-momentum magnitudes (|p|) of all jet constituents.
+    threshold : float
+        Fraction of total momentum to recover (default 0.90 for n₉₀).
+
+    Returns
+    -------
+    float
+        Fractional multiplicity in [0, N_constituents].
+        Returns nan for empty or zero-momentum jets.
+
+    Examples
+    --------
+    >>> compute_n_x([10., 5., 3., 1.])   # threshold=0.90
+    # cumfrac = [0.526, 0.789, 0.947, 1.0] → need ~2.6 particles
+    """
+    pmags = np.asarray(const_pmags, dtype=float)
+    if len(pmags) == 0:
+        return np.nan
+    pmags = np.sort(pmags)[::-1]          # sort descending
+    total = pmags.sum()
+    if total <= 0.0:
+        return np.nan
+
+    cumfrac = np.cumsum(pmags) / total
+
+    # Index of first bin where cumulative fraction reaches threshold
+    idx = int(np.searchsorted(cumfrac, threshold, side="left"))
+    if idx >= len(cumfrac):
+        return float(len(cumfrac))
+    if idx == 0:
+        # First constituent alone exceeds threshold
+        return float(threshold / cumfrac[0])
+    # Interpolate within the idx-th constituent
+    frac = (threshold - cumfrac[idx - 1]) / (cumfrac[idx] - cumfrac[idx - 1])
+    return float(idx + frac)
 
 
 # ---------------------------------------------------------------------------
@@ -84,10 +157,17 @@ def _fastjet_jets(px_arr, py_arr, pz_arr, e_arr, charge_arr, R, ptmin, etamax):
         idxs = [c.user_index() for c in constituents]
         n_ch = sum(1 for i in idxs if abs(charge_arr[i]) > 0)
         pmag = np.sqrt(jet.px()**2 + jet.py()**2 + jet.pz()**2)
+        # Compute n_90: fractional particle count for 90% of jet |p|
+        const_pmags = [
+            np.sqrt(float(px_arr[i])**2 + float(py_arr[i])**2
+                    + float(pz_arr[i])**2)
+            for i in idxs
+        ]
+        n90 = compute_n_x(const_pmags, threshold=0.90)
         jets.append({
             "px": jet.px(), "py": jet.py(), "pz": jet.pz(), "e": jet.e(),
             "pt": jet.pt(), "eta": jet.eta(), "pmag": pmag,
-            "n_const": len(constituents), "n_charged": n_ch,
+            "n_const": len(constituents), "n_charged": n_ch, "n90": n90,
         })
     return jets
 
@@ -96,7 +176,7 @@ def _simple_jets(px_arr, py_arr, pz_arr, e_arr, charge_arr, ptmin, etamax):
     """
     Lightweight jet proxy when FastJet is unavailable.
 
-    Groups particles into cones of radius R (≈ 0.8) by iterative nearest-
+    Groups particles into cones of radius R (≈ 0.4) by iterative nearest-
     neighbour clustering in (η, φ) space.  Intended for debugging / CI only;
     production runs should use FastJet.
     """
@@ -145,10 +225,13 @@ def _simple_jets(px_arr, py_arr, pz_arr, e_arr, charge_arr, ptmin, etamax):
             continue
 
         n_ch = int(np.sum(np.abs(charge_arr[members]) > 0))
+        const_pmags = np.sqrt(px_arr[members]**2 + py_arr[members]**2
+                              + pz_arr[members]**2)
+        n90 = compute_n_x(const_pmags, threshold=0.90)
         jets.append({
             "px": jpx, "py": jpy, "pz": jpz, "e": je,
             "pt": jpt, "eta": jeta, "pmag": jpmag,
-            "n_const": len(members), "n_charged": n_ch,
+            "n_const": len(members), "n_charged": n_ch, "n90": n90,
         })
     return jets
 
@@ -186,6 +269,7 @@ def make_histograms():
     W_ax  = hist.axis.Variable(W_BINS,    name="W",    label=r"$W$ [GeV]")
     PL_ax = hist.axis.Variable(P_LAB_BINS, name="plab", label=r"$|p|_{\rm lab}$ [GeV]")
     N_ax  = hist.axis.Regular(NMAX, 0, NMAX, name="N",  label=r"$N_{\rm charged}$")
+    N90_ax = hist.axis.Regular(N90_BINS, 0, N90_MAX, name="n90", label=r"$n_{90}$")
 
     Q2_ax   = hist.axis.Regular(50, 1,  1000, name="Q2",  label=r"$Q^2$ [GeV$^2$]",
                                 transform=hist.axis.transform.log)
@@ -195,18 +279,24 @@ def make_histograms():
     W_fine  = hist.axis.Regular(50, 5, 55,  name="W_fine", label=r"$W$ [GeV]")
 
     hists = {
-        # 3D: (W bin) × (|p_lab| bin) × (N_charged) — main FFS observable
+        # ── Primary FFS observable: n₉₀ (arXiv:2308.10951, primary figure) ──
+        # 3D: (W bin) × (|p_lab| bin) × (n₉₀)
+        "n90_3d": hist.Hist(W_ax, PL_ax, N90_ax, storage=hist.storage.Double()),
+
+        # Profile: ⟨n₉₀⟩ as function of W (fine binning), per p_lab bin
+        # Stored as two histograms: sum_n90 and count (mean = sum / count)
+        "sum_n90_vs_W":   hist.Hist(W_fine, PL_ax, storage=hist.storage.Double()),
+        "count_n90_vs_W": hist.Hist(W_fine, PL_ax, storage=hist.storage.Double()),
+
+        # ── Secondary FFS observable: N_charged (IRC unsafe, but common) ───
+        # 3D: (W bin) × (|p_lab| bin) × (N_charged)
         "mult_3d": hist.Hist(W_ax, PL_ax, N_ax, storage=hist.storage.Double()),
 
-        # 1D distributions for each (W_bin, p_lab_bin) pair — filled separately
-        # but encoded in the 3D histogram above
-
         # Profile: ⟨N_charged⟩ as function of W (fine binning), per p_lab bin
-        # Stored as two histograms: sum_N and count (mean = sum_N / count)
         "sum_N_vs_W": hist.Hist(W_fine, PL_ax, storage=hist.storage.Double()),
         "count_vs_W": hist.Hist(W_fine, PL_ax, storage=hist.storage.Double()),
 
-        # DIS kinematics cross-checks
+        # ── DIS kinematics cross-checks ─────────────────────────────────────
         "Q2":  hist.Hist(Q2_ax,  storage=hist.storage.Double()),
         "x":   hist.Hist(x_ax,   storage=hist.storage.Double()),
         "y":   hist.Hist(y_ax,   storage=hist.storage.Double()),
@@ -285,20 +375,26 @@ def analyze(args):
             jeta  = jet["eta"]
             jpmag = jet["pmag"]
             n_ch  = jet["n_charged"]
+            n90   = jet["n90"]
 
             hists["jet_eta_pt"].fill(eta=np.clip(jeta, -3.99, 3.99),
                                      pt=np.clip(jpt, 0.01, 29.99))
 
-            # FFS main observable: N_charged vs (W, |p_lab|)
+            # FFS observables: fill when in the analysis kinematic range
             if 5.0 <= W <= 55.0 and P_LAB_BINS[0] <= jpmag < P_LAB_BINS[-1]:
+                # ── Primary observable: n₉₀ ───────────────────────────────
+                if np.isfinite(n90):
+                    n90_clipped = min(float(n90), N90_MAX - N90_MAX / N90_BINS)
+                    hists["n90_3d"].fill(W=W, plab=jpmag, n90=n90_clipped)
+                    hists["sum_n90_vs_W"].fill(
+                        W_fine=W, plab=jpmag, weight=float(n90))
+                    hists["count_n90_vs_W"].fill(W_fine=W, plab=jpmag)
+
+                # ── Secondary observable: N_charged ───────────────────────
                 n_ch_clipped = min(n_ch, NMAX - 1)
-                hists["mult_3d"].fill(
-                    W=W, plab=jpmag, N=n_ch_clipped,
-                )
-                # Mean multiplicity profile: store sum and count separately
+                hists["mult_3d"].fill(W=W, plab=jpmag, N=n_ch_clipped)
                 hists["sum_N_vs_W"].fill(
-                    W_fine=W, plab=jpmag, weight=float(n_ch),
-                )
+                    W_fine=W, plab=jpmag, weight=float(n_ch))
                 hists["count_vs_W"].fill(W_fine=W, plab=jpmag)
 
             n_accepted += 1

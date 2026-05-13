@@ -6,20 +6,27 @@ Produces publication-quality figures from the histogram ROOT file generated
 by analyze_events.py, illustrating the Frame-dependent Fragmentation Shift
 (FFS) effect in EIC deep-inelastic scattering.
 
+Primary observable: n₉₀ — the fractional minimum number of jet constituents
+(sorted by decreasing |p|) needed to carry 90% of the jet's total momentum.
+This is the quantity studied in arXiv:2308.10951.  At fixed lab-frame jet
+|p|, the FFS effect predicts ⟨n₉₀⟩ varies with W because different W values
+correspond to different boosts between the lab and the photon-proton colour
+rest frame.
+
 Figures produced
 ----------------
-1. ffs_main.pdf  — Primary result: ⟨N_charged⟩ vs W for fixed |p_lab| bins
-2. ffs_ratio.pdf — Ratio to lowest-|p_lab| reference bin (FFS magnitude)
+1. ffs_main.pdf  — Primary result: ⟨n₉₀⟩ vs W for fixed |p_lab| bins
+2. ffs_ratio.pdf — ⟨n₉₀⟩ ratio to lowest-|p_lab| reference bin (FFS magnitude)
 3. kinematics.pdf — DIS kinematic plane (Q² vs W, x, y distributions)
 4. jet_landscape.pdf — Jet η vs pT heat-map + jet multiplicity per event
-5. ffs_heatmap.pdf — 2D: ⟨N_charged⟩(|p_lab|, W) as a colour map
+5. ffs_heatmap.pdf — 2D: ⟨n₉₀⟩(|p_lab|, W) as a colour map
 
 Usage
 -----
     python make_plots.py data/histograms.root [--outdir plots/]
     python make_plots.py data/histograms.root --outdir plots/ --format pdf
 
-Reference: arXiv:2308.10951
+Reference: arXiv:2308.10951  (Phys.Lett.B 866, 2025, 139561)
 """
 
 import argparse
@@ -180,51 +187,62 @@ def load_hist(f, name):
 
 
 # ---------------------------------------------------------------------------
-# Mean-multiplicity extractor from sum_N / count histograms
+# Mean-observable extractors from sum / count histogram pairs
 # ---------------------------------------------------------------------------
 
-def mean_mult_from_hist(hists, plab_bin_idx):
+def _mean_from_sum_count(hists, sum_key, count_key, plab_bin_idx,
+                         min_count=10):
     """
-    Extract ⟨N_charged⟩ ± σ_mean as a function of W for a given |p_lab| bin.
+    Generic extractor: ⟨obs⟩ ± σ_mean as a function of W for a given
+    |p_lab| bin, from a pair of (sum, count) histograms stored by
+    analyze_events.py.
 
-    Uses the sum_N_vs_W and count_vs_W histograms saved by analyze_events.py.
+    Both histograms are expected to have axes [W_fine, plab].
     """
-    h_sum   = hists["sum_N_vs_W"]
-    h_count = hists["count_vs_W"]
-
-    # Select the correct |p_lab| bin by slicing on axis index
-    # Both histograms have axes [W_fine, plab]
+    h_sum   = hists[sum_key]
+    h_count = hists[count_key]
     ip = plab_bin_idx
 
-    # Extract values for this p_lab bin
-    sum_vals   = h_sum.values()[:, ip]     # shape (nW,)
-    count_vals = h_count.values()[:, ip]   # shape (nW,)
+    sum_vals   = h_sum.values()[:, ip]
+    count_vals = h_count.values()[:, ip]
     W_centers  = h_sum.axes[0].centers
 
     with np.errstate(invalid="ignore", divide="ignore"):
         means = np.where(count_vals > 0, sum_vals / count_vals, np.nan)
-        # Poisson approximation for σ_mean: σ ≈ √(⟨N⟩) / √(count)
+        # Poisson approximation for σ_mean
         sigma_mean = np.where(
             count_vals > 1,
             np.sqrt(np.abs(means) / np.maximum(count_vals, 1)),
             np.nan,
         )
 
-    mask = count_vals > 10
+    mask = count_vals > min_count
     return W_centers, means, sigma_mean, mask
 
 
+def mean_n90_from_hist(hists, plab_bin_idx):
+    """Extract ⟨n₉₀⟩ ± σ_mean vs W for a given |p_lab| bin (primary obs.)."""
+    return _mean_from_sum_count(
+        hists, "sum_n90_vs_W", "count_n90_vs_W", plab_bin_idx)
+
+
+def mean_mult_from_hist(hists, plab_bin_idx):
+    """Extract ⟨N_charged⟩ ± σ_mean vs W for a given |p_lab| bin (secondary obs.)."""
+    return _mean_from_sum_count(
+        hists, "sum_N_vs_W", "count_vs_W", plab_bin_idx)
+
+
 # ---------------------------------------------------------------------------
-# Figure 1 – Primary FFS result: ⟨N_charged⟩ vs W
+# Figure 1 – Primary FFS result: ⟨n₉₀⟩ vs W
 # ---------------------------------------------------------------------------
 
 def plot_ffs_main(hists, outdir):
-    """⟨N_charged⟩ vs W for each |p_lab| bin."""
+    """⟨n₉₀⟩ vs W for each |p_lab| bin — primary FFS observable (arXiv:2308.10951)."""
     fig, ax = plt.subplots(figsize=(8, 6))
 
     plotted_any = False
     for k in range(len(P_LAB_BINS) - 1):
-        W_c, means, errs, mask = mean_mult_from_hist(hists, k)
+        W_c, means, errs, mask = mean_n90_from_hist(hists, k)
         if mask.sum() == 0:
             continue
         plotted_any = True
@@ -244,10 +262,10 @@ def plot_ffs_main(hists, outdir):
         _plot_ffs_from_3d(hists, ax)
 
     ax.set_xlabel(r"$W = \sqrt{(P+q)^2}$  [GeV]", fontsize=FONT_LABEL)
-    ax.set_ylabel(r"$\langle N_{\rm charged}\rangle$ per jet",
-                  fontsize=FONT_LABEL)
-    ax.set_title("FFS Effect: Jet Charged-Particle Multiplicity vs $W$",
-                 fontsize=FONT_TITLE, pad=12)
+    ax.set_ylabel(r"$\langle n_{90} \rangle$ per jet", fontsize=FONT_LABEL)
+    ax.set_title(
+        r"FFS Effect: $\langle n_{90}\rangle$ vs $W$ at Fixed Lab-Frame $|p|$",
+        fontsize=FONT_TITLE, pad=12)
     ax.set_xlim(5, 55)
     ax.set_ylim(bottom=0)
     ax.xaxis.set_minor_locator(mticker.AutoMinorLocator())
@@ -274,7 +292,8 @@ def _add_ffs_arrow(ax):
     ylim = ax.get_ylim()
     y_pos = ylim[0] + 0.08 * (ylim[1] - ylim[0])
     ax.annotate(
-        "FFS: multiplicity\nrises with $W$\nat fixed $|p|_{\\rm lab}$",
+        r"FFS: $\langle n_{90}\rangle$ varies" "\n"
+        r"with $W$ at fixed $|p|_{\rm lab}$",
         xy=(45, y_pos + 0.5 * (ylim[1] - ylim[0])),
         xytext=(35, y_pos + 0.15 * (ylim[1] - ylim[0])),
         arrowprops=dict(arrowstyle="->", color="#888888", lw=1.5),
@@ -286,17 +305,16 @@ def _add_ffs_arrow(ax):
 
 def _plot_ffs_from_3d(hists, ax):
     """
-    Fall-back: extract ⟨N⟩ vs W from the 3D (W × p_lab × N) histogram
-    when the Mean-storage histogram is empty.
+    Fall-back: extract ⟨n₉₀⟩ vs W from the 3D (W × p_lab × n₉₀) histogram
+    when the sum/count histograms are empty.
     """
-    h3 = hists["mult_3d"]
-    W_edges   = h3.axes["W"].edges
-    PL_edges  = h3.axes["plab"].edges
-    N_centers = h3.axes["N"].centers
+    h3 = hists["n90_3d"]
+    W_edges    = h3.axes[0].edges
+    PL_edges   = h3.axes[1].edges
+    N90_centers = h3.axes[2].centers
 
     for k in range(len(PL_edges) - 1):
-        h_slice = h3[:, k, :]               # (W, N) for this p_lab bin
-        values  = h3.values()[:, k, :]      # shape (nW, nN)
+        values  = h3.values()[:, k, :]      # shape (nW, nN90)
         W_c     = 0.5 * (W_edges[:-1] + W_edges[1:])
         means, errs = [], []
         masks = []
@@ -304,8 +322,8 @@ def _plot_ffs_from_3d(hists, ax):
             counts = values[iw]
             tot = counts.sum()
             if tot > 10:
-                mean = float(np.sum(counts * N_centers) / tot)
-                var  = float(np.sum(counts * (N_centers - mean)**2) / tot)
+                mean = float(np.sum(counts * N90_centers) / tot)
+                var  = float(np.sum(counts * (N90_centers - mean)**2) / tot)
                 err  = float(np.sqrt(var / tot))
             else:
                 mean = err = np.nan
@@ -332,7 +350,7 @@ def _plot_ffs_from_3d(hists, ax):
 # ---------------------------------------------------------------------------
 
 def plot_ffs_ratio(hists, outdir):
-    """Ratio ⟨N_charged⟩(W) / ⟨N_charged⟩_ref vs W, where ref = lowest |p_lab| bin."""
+    """Ratio ⟨n₉₀⟩(W) / ⟨n₉₀⟩_ref vs W, where ref = lowest |p_lab| bin."""
     fig, (ax_main, ax_ratio) = plt.subplots(
         2, 1, figsize=(8, 7),
         gridspec_kw={"height_ratios": [2, 1], "hspace": 0.08},
@@ -347,7 +365,7 @@ def plot_ffs_ratio(hists, outdir):
     W_c_global = None
 
     for k in range(len(P_LAB_BINS) - 1):
-        W_c, means, errs, mask = mean_mult_from_hist(hists, k)
+        W_c, means, errs, mask = mean_n90_from_hist(hists, k)
         all_means[k] = means
         all_errs[k]  = errs
         all_masks[k] = mask
@@ -394,10 +412,10 @@ def plot_ffs_ratio(hists, outdir):
     ax_ratio.set_ylim(0.5, 2.5)
     ax_ratio.yaxis.set_minor_locator(mticker.AutoMinorLocator())
 
-    ax_main.set_ylabel(r"$\langle N_{\rm charged}\rangle$ per jet",
+    ax_main.set_ylabel(r"$\langle n_{90}\rangle$ per jet",
                        fontsize=FONT_LABEL)
     ax_main.set_title(
-        "FFS Ratio: Multiplicity Relative to Lowest $|p|_{\\rm lab}$ Bin",
+        r"FFS Ratio: $\langle n_{90}\rangle$ Relative to Lowest $|p|_{\rm lab}$ Bin",
         fontsize=FONT_TITLE - 1, pad=10,
     )
     ax_main.legend(title=r"Fixed lab-frame $|p|$", title_fontsize=FONT_LEGEND,
@@ -527,7 +545,7 @@ def plot_jet_landscape(hists, outdir):
     ax_njet.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
     eic_label(ax_njet, loc="upper right")
 
-    fig.suptitle("EIC Jet Observables  (anti-$k_T$, $R=0.8$, $p_T > 2$ GeV)",
+    fig.suptitle("EIC Jet Observables  (anti-$k_T$, $R=0.4$, $p_T > 2$ GeV)",
                  fontsize=FONT_TITLE, y=1.02)
     fig.tight_layout()
     save_fig(fig, os.path.join(outdir, "jet_landscape.pdf"))
@@ -535,18 +553,18 @@ def plot_jet_landscape(hists, outdir):
 
 
 # ---------------------------------------------------------------------------
-# Figure 5 – FFS heat-map: ⟨N_charged⟩(|p_lab|, W)
+# Figure 5 – FFS heat-map: ⟨n₉₀⟩(|p_lab|, W)
 # ---------------------------------------------------------------------------
 
 def plot_ffs_heatmap(hists, outdir):
-    """2D colour map of ⟨N_charged⟩ as a function of (W, |p_lab|)."""
-    h3 = hists["mult_3d"]
+    """2D colour map of ⟨n₉₀⟩ as a function of (W, |p_lab|)."""
+    h3 = hists["n90_3d"]
 
     W_edges  = h3.axes[0].edges
     PL_edges = h3.axes[1].edges
-    N_c      = h3.axes[2].centers
+    N90_c    = h3.axes[2].centers
 
-    vals = h3.values()    # shape (nW, nPL, nN)
+    vals = h3.values()    # shape (nW, nPL, nN90)
 
     nW  = len(W_edges) - 1
     nPL = len(PL_edges) - 1
@@ -559,7 +577,7 @@ def plot_ffs_heatmap(hists, outdir):
             counts = vals[iw, ip, :]
             tot    = counts.sum()
             if tot > 10:
-                mean_grid[iw, ip]  = float(np.sum(counts * N_c) / tot)
+                mean_grid[iw, ip]  = float(np.sum(counts * N90_c) / tot)
                 count_grid[iw, ip] = tot
 
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -583,7 +601,7 @@ def plot_ffs_heatmap(hists, outdir):
         shading="flat",
     )
     cb = fig.colorbar(pcm, ax=ax, pad=0.02)
-    cb.set_label(r"$\langle N_{\rm charged}\rangle$ per jet", fontsize=FONT_LABEL)
+    cb.set_label(r"$\langle n_{90}\rangle$ per jet", fontsize=FONT_LABEL)
 
     # Contour lines for aesthetics
     W_c  = 0.5 * (W_edges[:-1] + W_edges[1:])
@@ -600,7 +618,7 @@ def plot_ffs_heatmap(hists, outdir):
     ax.set_xlabel(r"$W$  [GeV]", fontsize=FONT_LABEL)
     ax.set_ylabel(r"Jet $|p|_{\rm lab}$  [GeV]", fontsize=FONT_LABEL)
     ax.set_title(
-        r"FFS Heat Map: $\langle N_{\rm charged}\rangle$ vs ($W$, $|p|_{\rm lab}$)",
+        r"FFS Heat Map: $\langle n_{90}\rangle$ vs ($W$, $|p|_{\rm lab}$)",
         fontsize=FONT_TITLE - 1, pad=10,
     )
     ax.xaxis.set_minor_locator(mticker.AutoMinorLocator())
@@ -647,8 +665,9 @@ def main():
             except Exception as exc:
                 print(f"  Warning: could not load {key}: {exc}")
 
-    required = {"mult_3d", "sum_N_vs_W", "count_vs_W", "Q2", "x", "y", "W",
-                "Q2_vs_W", "jet_eta_pt", "n_jets"}
+    required = {"n90_3d", "sum_n90_vs_W", "count_n90_vs_W",
+                "mult_3d", "sum_N_vs_W", "count_vs_W",
+                "Q2", "x", "y", "W", "Q2_vs_W", "jet_eta_pt", "n_jets"}
     missing = required - set(hists)
     if missing:
         sys.exit(f"ERROR: missing histograms in ROOT file: {missing}")

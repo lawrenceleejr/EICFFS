@@ -1,33 +1,60 @@
 # EICFFS — EIC Frame-dependent Fragmentation Shift Study
 
 A self-contained Docker framework for studying the **Frame-dependent Fragmentation
-Shift (FFS) effect** at the Electron–Ion Collider (EIC).  The FFS effect
-describes how jet charged-particle multiplicity, observed at a fixed lab-frame
-momentum, varies with the photon-proton invariant mass *W* — a direct
-consequence of the Lorentz boost between the lab frame and the colour rest
-frame changing as a function of *W*.
+Shift (FFS) effect** at the Electron–Ion Collider (EIC), based on the paper:
 
-**Reference:** [arXiv:2308.10951](https://arxiv.org/abs/2308.10951)
+**Reference:** [arXiv:2308.10951](https://arxiv.org/abs/2308.10951)  
+*Phys.Lett.B 866, 2025, 139561 — Lee et al., University of Tennessee Knoxville*
 
 ---
 
 ## Physics Overview
 
-In neutral-current DIS (*ep → eX*) the virtual photon carries 4-momentum
-*q = k − k′*.  The key invariants are:
+### The FFS Effect
+
+In QCD, jet fragmentation occurs in the **colour rest frame** — the rest frame
+of all colour-connected particles — not the lab frame.  When a jet has fixed
+lab-frame momentum |p|_lab, the boost between the lab frame and the colour rest
+frame depends on the event kinematics.  As a result, two jets with the *same*
+lab-frame momentum can have very different internal structure if they come from
+different kinematic configurations (different colour rest frames).
+
+This **Frame-dependent Fragmentation Shift (FFS)** is illustrated in
+arXiv:2308.10951 using e⁺e⁻ → 3j (colour rest frame = lab frame) vs.
+e⁺e⁻ → ZZ → 4j (colour rest frame = boosted Z rest frame).  For the ZZ
+process, ⟨n₉₀⟩ is set by m_Z/2 ≈ 45 GeV *regardless* of the lab-frame
+momentum, leading to 50% differences from the 3j case at high momentum.
+
+### Primary observable: n₉₀
+
+Following arXiv:2308.10951 Sec. 2, the main observable is **n_x** — the
+fractional minimum number of jet constituents (ordered by decreasing 3-momentum
+magnitude) needed to recover *x*% of the total jet momentum:
+
+1. Sort constituents by decreasing |p|  
+2. Compute cumulative momentum fraction  
+3. Interpolate to find fractional n needed to reach the threshold  
+
+We use **n₉₀** (threshold = 90%), which is IRC-safe under momentum ordering
+and strongly discriminates between jet populations from different colour topologies.
+The simple charged-particle count N_charged is also stored as a secondary observable.
+
+### The EIC analogy
+
+In NC-DIS (*ep → eX*) the relevant colour rest frame is the **photon-proton
+CM frame** (Breit/γ\*p frame), characterised by the invariant mass *W*:
 
 | Symbol | Definition | Meaning |
 |--------|-----------|---------|
 | Q²   | −q²       | Photon virtuality |
 | *x*   | Q²/(2P·q) | Bjorken-x (struck parton momentum fraction) |
 | *y*   | P·q / P·k | Inelasticity |
-| *W*   | √((P+q)²) | Photon-proton CM energy |
+| *W*   | √((P+q)²) | Photon-proton CM energy = colour rest frame energy |
 
-For **fixed lab-frame jet momentum** |p|_lab, the boost from the lab to
-the photon-proton colour rest frame (Breit / γ*p CM frame) depends on *W*.
-Therefore the same lab-frame object probes a *different* part of the
-fragmentation function at different *W* values — this is the FFS effect,
-visible as a rise in ⟨*N*_charged⟩ per jet with increasing *W* at fixed |p|_lab.
+For **fixed lab-frame jet |p|**, the boost to the colour rest frame changes
+with *W*.  Therefore the same lab-frame jet corresponds to a *different*
+CM-frame momentum at different *W*, → the fragmentation (and hence n₉₀)
+varies with *W* at fixed |p|_lab.  This is the FFS effect at the EIC.
 
 ---
 
@@ -128,13 +155,15 @@ Key options:
 ### `analyze_events.py`
 
 Reads the Parquet event file, reconstructs DIS kinematics, finds jets
-(anti-*k*_T, *R* = 0.8 via **FastJet** or built-in fallback), and fills
+(anti-*k*_T, **R = 0.4** via **FastJet** or built-in fallback), and fills
 the following histograms, written to a **ROOT** file via `uproot`:
 
 | Histogram | Axes | Observable |
 |-----------|------|-----------|
-| `mult_3d` | W × \|p\|_lab × N_charged | 3D FFS histogram |
-| `mean_mult_vs_W` | W × \|p\|_lab (Mean storage) | ⟨N_charged⟩ profile |
+| `n90_3d` | W × \|p\|_lab × n₉₀ | **Primary FFS 3D histogram** |
+| `sum_n90_vs_W`, `count_n90_vs_W` | W × \|p\|_lab | ⟨n₉₀⟩ profile (sum + count) |
+| `mult_3d` | W × \|p\|_lab × N_charged | Secondary FFS histogram |
+| `sum_N_vs_W`, `count_vs_W` | W × \|p\|_lab | ⟨N_charged⟩ profile (sum + count) |
 | `Q2`, `x`, `y`, `W` | 1D | DIS kinematic distributions |
 | `Q2_vs_W` | W × Q² | Kinematic plane |
 | `jet_eta_pt` | η × pT | Jet landscape |
@@ -146,11 +175,11 @@ Reads ROOT histograms and produces five publication-quality figures:
 
 | File | Content |
 |------|---------|
-| `ffs_main.pdf` | **Primary result**: ⟨N_charged⟩ vs *W* for each \|p\|_lab bin |
-| `ffs_ratio.pdf` | Ratio to lowest-|p|_lab bin — FFS magnitude |
+| `ffs_main.pdf` | **Primary result**: ⟨n₉₀⟩ vs *W* for each \|p\|_lab bin |
+| `ffs_ratio.pdf` | ⟨n₉₀⟩ ratio to lowest-|p|_lab bin — FFS magnitude |
 | `kinematics.pdf` | DIS kinematic plane (Q² vs W) + marginal distributions |
 | `jet_landscape.pdf` | Jet η–pT heat-map + jet multiplicity per event |
-| `ffs_heatmap.pdf` | 2D colour map of ⟨N_charged⟩(*W*, \|p\|_lab) |
+| `ffs_heatmap.pdf` | 2D colour map of ⟨n₉₀⟩(*W*, \|p\|_lab) |
 
 ---
 
@@ -159,10 +188,11 @@ Reads ROOT histograms and produces five publication-quality figures:
 | Package | Role |
 |---------|------|
 | [Pythia8](https://pythia.org) | Hard-process MC event generation |
-| [FastJet](https://fastjet.fr) | Anti-*k*_T jet finding |
+| [FastJet](https://fastjet.fr) | Anti-*k*_T jet finding (R=0.4) |
 | [uproot](https://uproot.readthedocs.io) | ROOT I/O (no ROOT dependency) |
 | [awkward-array](https://awkward-array.org) | Ragged array handling |
 | [hist](https://hist.readthedocs.io) | Histogram filling & manipulation |
 | [matplotlib](https://matplotlib.org) | Plotting |
 | [mplhep](https://mplhep.readthedocs.io) | HEP plot styling |
 | [scipy](https://scipy.org) | Gaussian smoothing for heat maps |
+
