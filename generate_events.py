@@ -93,12 +93,17 @@ def init_pythia(args):
     cfg(f"PhaseSpace:Q2min = {args.Q2min}")
     # Pythia uses Q2Max (capital M) in most versions; keep a fallback for
     # compatibility with builds that may expose alternate capitalization.
-    if not cfg(f"PhaseSpace:Q2Max = {args.Q2max}"):
-        if not cfg(f"PhaseSpace:Q2max = {args.Q2max}"):
-            sys.exit(
-                "Pythia8 does not recognize PhaseSpace:Q2Max/Q2max. "
-                "Check your installed Pythia8 version and available settings."
-            )
+    q2max_keys = ("PhaseSpace:Q2Max", "PhaseSpace:Q2max")
+    configured_q2max = False
+    for key in q2max_keys:
+        if cfg(f"{key} = {args.Q2max}"):
+            configured_q2max = True
+            break
+    if not configured_q2max:
+        sys.exit(
+            "Pythia8 does not recognize PhaseSpace:Q2Max/Q2max. "
+            "Check your installed Pythia8 version and available settings."
+        )
 
     # ── PDF ─────────────────────────────────────────────────────────────────
     # PDF set 13 = NNPDF2.3 QCD+QED LO in Pythia 8.2+.
