@@ -42,8 +42,6 @@ def parse_args():
                    help="Proton beam energy (GeV)")
     p.add_argument("--Q2min", type=float, default=1.0,
                    help="Minimum Q² (GeV²)")
-    p.add_argument("--Q2max", type=float, default=1000.0,
-                   help="Maximum Q² (GeV²)")
     p.add_argument("--output", type=str, default="data/events.parquet",
                    help="Output Parquet file path")
     p.add_argument("--seed", type=int, default=42,
@@ -91,21 +89,6 @@ def init_pythia(args):
 
     # ── Phase-space cuts ────────────────────────────────────────────────────
     cfg(f"PhaseSpace:Q2min = {args.Q2min}")
-    # Pythia uses Q2Max (capital M) in most versions; keep a fallback for
-    # compatibility with builds that may expose alternate capitalization.
-    q2_max_setting_names = ("PhaseSpace:Q2Max", "PhaseSpace:Q2max")
-    q2_max_configured = False
-    for name in q2_max_setting_names:
-        if cfg(f"{name} = {args.Q2max}"):
-            q2_max_configured = True
-            break
-    if not q2_max_configured:
-        print(
-            "WARNING: Pythia8 does not recognize PhaseSpace:Q2Max/Q2max; "
-            "continuing without an explicit Q2 upper cut. "
-            "Check your installed Pythia8 settings if this is unexpected.",
-            file=sys.stderr,
-        )
 
     # ── PDF ─────────────────────────────────────────────────────────────────
     # PDF set 13 = NNPDF2.3 QCD+QED LO in Pythia 8.2+.

@@ -14,7 +14,6 @@ N_EVENTS="${N_EVENTS:-200000}"
 ELECTRON_ENERGY="${ELECTRON_ENERGY:-10.0}"
 PROTON_ENERGY="${PROTON_ENERGY:-100.0}"
 Q2MIN="${Q2MIN:-1.0}"
-Q2MAX="${Q2MAX:-1000.0}"
 DATA_DIR="${DATA_DIR:-data}"
 PLOT_DIR="${PLOT_DIR:-plots}"
 EVENTS_FILE="${DATA_DIR}/events.parquet"
@@ -49,7 +48,6 @@ if [ "$SKIP_GEN" = false ]; then
         --electron-energy "${ELECTRON_ENERGY}" \
         --proton-energy   "${PROTON_ENERGY}" \
         --Q2min           "${Q2MIN}" \
-        --Q2max           "${Q2MAX}" \
         --output          "${EVENTS_FILE}" \
         --quiet
     echo ""

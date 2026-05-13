@@ -148,7 +148,7 @@ Key options:
 | `--n-events` | 200 000 | Events to save |
 | `--electron-energy` | 10 GeV | Electron beam energy |
 | `--proton-energy` | 100 GeV | Proton beam energy |
-| `--Q2min` / `--Q2max` | 1 / 1000 GeV² | Phase-space cuts |
+| `--Q2min` | 1 GeV² | Minimum Q² phase-space cut |
 | `--output` | `data/events.parquet` | Output path |
 | `--quiet` | off | Suppress Pythia8 output |
 
@@ -195,4 +195,3 @@ Reads ROOT histograms and produces five publication-quality figures:
 | [matplotlib](https://matplotlib.org) | Plotting |
 | [mplhep](https://mplhep.readthedocs.io) | HEP plot styling |
 | [scipy](https://scipy.org) | Gaussian smoothing for heat maps |
-
