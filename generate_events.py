@@ -93,17 +93,18 @@ def init_pythia(args):
     cfg(f"PhaseSpace:Q2min = {args.Q2min}")
     # Pythia uses Q2Max (capital M) in most versions; keep a fallback for
     # compatibility with builds that may expose alternate capitalization.
-    q2_max_setting_keys = ("PhaseSpace:Q2Max", "PhaseSpace:Q2max")
-    configured_q2max = False
-    for key in q2_max_setting_keys:
-        if cfg(f"{key} = {args.Q2max}"):
-            configured_q2max = True
+    q2_max_setting_names = ("PhaseSpace:Q2Max", "PhaseSpace:Q2max")
+    q2_max_configured = False
+    for name in q2_max_setting_names:
+        if cfg(f"{name} = {args.Q2max}"):
+            q2_max_configured = True
             break
-    if not configured_q2max:
-        sys.exit(
-            "Pythia8 does not recognize PhaseSpace:Q2Max/Q2max. "
-            "Check your installed Pythia8 version and available settings "
-            "(see the Pythia8 settings manual and your local Settings list).\n"
+    if not q2_max_configured:
+        print(
+            "WARNING: Pythia8 does not recognize PhaseSpace:Q2Max/Q2max; "
+            "continuing without an explicit Q2 upper cut. "
+            "Check your installed Pythia8 settings if this is unexpected.",
+            file=sys.stderr,
         )
 
     # ── PDF ─────────────────────────────────────────────────────────────────
