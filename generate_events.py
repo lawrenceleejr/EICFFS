@@ -165,6 +165,7 @@ def generate_and_save(args):
     """Run the event loop and write output to Parquet."""
     pythia = init_pythia(args)
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
+    selection_progress_interval = 10_000
 
     # Event-level scalars
     ev_Q2, ev_W, ev_x, ev_y = [], [], [], []
@@ -177,6 +178,15 @@ def generate_and_save(args):
     n_tried = 0
     n_no_kin = 0    # events where extract_kinematics returned None
     n_invalid = 0   # events where kin.valid is False
+
+    def maybe_print_selection_progress():
+        if args.quiet or n_tried == 0 or n_tried % selection_progress_interval != 0:
+            return
+        print(
+            f"  Tried {n_tried:>7d} events; "
+            f"DIS-selected {n_saved:>7d} / {args.n_events} "
+            f"({n_saved / n_tried * 100:.2f}%)"
+        )
 
     while n_saved < args.n_events:
         if n_tried >= args.max_trials:
@@ -198,9 +208,11 @@ def generate_and_save(args):
         kin = extract_kinematics(pythia.event)
         if kin is None:
             n_no_kin += 1
+            maybe_print_selection_progress()
             continue
         if not kin.valid:
             n_invalid += 1
+            maybe_print_selection_progress()
             continue
 
         # Collect final-state hadrons (exclude the scattered lepton)
@@ -235,6 +247,7 @@ def generate_and_save(args):
         par_charge.append(fcharge)
 
         n_saved += 1
+        maybe_print_selection_progress()
         if n_saved % 1_000 == 0 and not args.quiet:
             print(f"  Saved {n_saved:>7d} / {args.n_events} events "
                   f"  (efficiency {n_saved/n_tried*100:.1f}%)")
