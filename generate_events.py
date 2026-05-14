@@ -10,7 +10,15 @@ Default EIC configuration: 10 GeV electrons on 100 GeV protons (√s ≈ 63 GeV)
 Usage
 -----
     python generate_events.py [options]
-    python generate_events.py --n-events 500000 --output data/events.parquet --quiet
+    python generate_events.py --n-events 10000 --output data/events.parquet --quiet
+
+Notes
+-----
+    --n-events controls the number of *saved* (accepted DIS) events.
+    --max-trials sets a hard cap on total Pythia8 calls to prevent runaway
+    loops if DIS selection efficiency is very low.  If the cap is reached
+    before n-events are saved, the script writes whatever has been collected
+    and prints a warning.
 
 Reference: arXiv:2308.10951
 """
@@ -34,8 +42,11 @@ def parse_args():
         description="Generate EIC DIS events with Pythia8 for FFS effect study",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("--n-events", type=int, default=200_000,
+    p.add_argument("--n-events", type=int, default=10_000,
                    help="Number of events to save")
+    p.add_argument("--max-trials", type=int, default=1_000_000,
+                   help="Hard cap on total Pythia8 calls; exits early if reached "
+                        "before n-events are saved")
     p.add_argument("--electron-energy", type=float, default=10.0,
                    help="Electron beam energy (GeV)")
     p.add_argument("--proton-energy", type=float, default=100.0,
@@ -164,14 +175,32 @@ def generate_and_save(args):
 
     n_saved = 0
     n_tried = 0
+    n_no_kin = 0    # events where extract_kinematics returned None
+    n_invalid = 0   # events where kin.valid is False
 
     while n_saved < args.n_events:
+        if n_tried >= args.max_trials:
+            print(
+                f"\nWARNING: reached --max-trials={args.max_trials} after saving "
+                f"{n_saved} / {args.n_events} events "
+                f"(DIS efficiency {n_saved/n_tried*100:.2f}%).\n"
+                f"  Events with no DIS kinematics found : {n_no_kin}\n"
+                f"  Events failing validity checks      : {n_invalid}\n"
+                "Consider reviewing Pythia8 configuration or DIS selection cuts.",
+                flush=True,
+            )
+            break
+
         if not pythia.next():
             continue
         n_tried += 1
 
         kin = extract_kinematics(pythia.event)
-        if kin is None or not kin.valid:
+        if kin is None:
+            n_no_kin += 1
+            continue
+        if not kin.valid:
+            n_invalid += 1
             continue
 
         # Collect final-state hadrons (exclude the scattered lepton)
@@ -206,11 +235,25 @@ def generate_and_save(args):
         par_charge.append(fcharge)
 
         n_saved += 1
-        if n_saved % 50_000 == 0 and not args.quiet:
+        if n_saved % 1_000 == 0 and not args.quiet:
             print(f"  Saved {n_saved:>7d} / {args.n_events} events "
                   f"  (efficiency {n_saved/n_tried*100:.1f}%)")
 
     pythia.stat()
+
+    if n_tried > 0:
+        print(
+            f"\nGeneration summary: {n_tried} Pythia8 calls, "
+            f"{n_saved} events saved "
+            f"(efficiency {n_saved/n_tried*100:.2f}%)"
+        )
+        if n_no_kin or n_invalid:
+            print(
+                f"  Rejected — no DIS kinematics found : {n_no_kin} "
+                f"({n_no_kin/n_tried*100:.1f}%)\n"
+                f"  Rejected — failed validity checks  : {n_invalid} "
+                f"({n_invalid/n_tried*100:.1f}%)"
+            )
 
     # ── Build awkward array ────────────────────────────────────────────────
     print(f"\nBuilding awkward array …", flush=True)
