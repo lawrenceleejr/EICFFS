@@ -79,7 +79,7 @@ def init_pythia(args):
     pythia = pythia8.Pythia()
 
     def cfg(s):
-        return pythia.readString(s)
+        pythia.readString(s)
 
     # ── Output verbosity ────────────────────────────────────────────────────
     if args.quiet:
@@ -190,10 +190,11 @@ def generate_and_save(args):
 
     while n_saved < args.n_events:
         if n_tried >= args.max_trials:
+            efficiency = (n_saved / n_tried * 100.0) if n_tried > 0 else 0.0
             print(
                 f"\nWARNING: reached --max-trials={args.max_trials} after saving "
                 f"{n_saved} / {args.n_events} events "
-                f"(DIS efficiency {n_saved/n_tried*100:.2f}%).\n"
+                f"(DIS efficiency {efficiency:.2f}%).\n"
                 f"  Events with no DIS kinematics found : {n_no_kin}\n"
                 f"  Events failing validity checks      : {n_invalid}\n"
                 "Consider reviewing Pythia8 configuration or DIS selection cuts.",
@@ -287,7 +288,8 @@ def generate_and_save(args):
 
     print(f"Writing {n_saved} events to {args.output} …", flush=True)
     ak.to_parquet(array, args.output)
-    print(f"Done.  ({n_tried} trials, efficiency {n_saved/n_tried*100:.1f}%)")
+    efficiency = (n_saved / n_tried * 100.0) if n_tried > 0 else 0.0
+    print(f"Done.  ({n_tried} trials, efficiency {efficiency:.1f}%)")
     return array
 
 
