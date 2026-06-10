@@ -6,6 +6,11 @@ Shift (FFS) effect** at the Electron–Ion Collider (EIC), based on the paper:
 **Reference:** [arXiv:2308.10951](https://arxiv.org/abs/2308.10951)  
 *Phys.Lett.B 866, 2025, 139561 — Lee et al., University of Tennessee Knoxville*
 
+> **📋 [`ANALYSIS_DESIGN.md`](ANALYSIS_DESIGN.md)** — full design of the
+> PRL-target phenomenology study (hypotheses, simulation campaign, confounder
+> controls, detector smearing, statistical methodology, figure plan, and
+> implementation roadmap).
+
 ---
 
 ## Physics Overview
