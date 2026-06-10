@@ -376,6 +376,188 @@ def boost_map(samples):
 
 
 # ---------------------------------------------------------------------------
+# Fig. 7: frame-dependence decomposition
+# ---------------------------------------------------------------------------
+
+# 2D map of the lab-measured <n90> in the (p_CM, |p|_lab) plane at fixed
+# hard scale.  Pure color-frame dependence appears as vertical banding.
+FIG7_PCM_EDGES = np.geomspace(4.0, 56.0, 9)
+FIG7_PLAB_EDGES = np.geomspace(3.5, 75.0, 11)
+FIG7_Q2_NARROW = (25.0, 45.0)        # narrow hard-scale window (DGLAP control)
+
+# Matched-cell contrast: within narrow (p_CM, Q^2) cells, split jets at the
+# median |p|_lab and compare the two halves (and the mirrored test with
+# (|p|_lab, Q^2) cells split in p_CM).  This is a paired comparison at fixed
+# color configuration and avoids the multicollinearity of global fits.
+FIG7_Q2_CELLS = [(25., 45.), (45., 80.), (80., 150.), (150., 400.)]
+FIG7_MIN_CELL = 3000
+FIG7_MIN_SEP = 1.3                   # min ratio between half means of split var
+
+
+def _combined_baseline(samples, variation="baseline"):
+    """Concatenate truth-level jets of one variation across configs."""
+    cols = {}
+    for (config, var, level), (d, meta) in samples.items():
+        if var != variation or level != "truth":
+            continue
+        for f in ("pcm", "plab", "n90lab", "n90cm", "Q2"):
+            cols.setdefault(f, []).append(d[f])
+    return {f: np.concatenate(v) for f, v in cols.items()} if cols else None
+
+
+def _wls_logslope(x, y, ye):
+    """Weighted fit y = a + b ln(x); returns (a, b, sigma_b)."""
+    lx = np.log(np.asarray(x))
+    A = np.vstack([np.ones_like(lx), lx]).T
+    w = 1.0 / np.asarray(ye)**2
+    cov = np.linalg.inv(A.T @ (A * w[:, None]))
+    coef = cov @ A.T @ (np.asarray(y) * w)
+    return float(coef[0]), float(coef[1]), float(np.sqrt(cov[1, 1]))
+
+
+def _contrast(d, obs, cell_var, split_var, cell_edges):
+    """
+    Paired contrast: in each (cell_var bin x Q^2 bin) cell, split jets at
+    the median of split_var and return one segment per cell:
+    (x_lo, y_lo, e_lo, x_hi, y_hi, e_hi, slope, slope_err, cell meta).
+    """
+    segs = []
+    for q2lo, q2hi in FIG7_Q2_CELLS:
+        mq = (d["Q2"] >= q2lo) & (d["Q2"] < q2hi)
+        for clo, chi in zip(cell_edges[:-1], cell_edges[1:]):
+            m = mq & (d[cell_var] >= clo) & (d[cell_var] < chi)
+            if m.sum() < FIG7_MIN_CELL:
+                continue
+            sv = d[split_var][m]
+            y = d[obs][m]
+            med = np.median(sv)
+            lo, hi = sv < med, sv >= med
+            x_lo = float(np.exp(np.mean(np.log(sv[lo]))))
+            x_hi = float(np.exp(np.mean(np.log(sv[hi]))))
+            if x_hi / x_lo < FIG7_MIN_SEP:
+                continue
+            y_lo, y_hi = float(y[lo].mean()), float(y[hi].mean())
+            e_lo = float(y[lo].std() / np.sqrt(lo.sum()))
+            e_hi = float(y[hi].std() / np.sqrt(hi.sum()))
+            dlnx = np.log(x_hi / x_lo)
+            segs.append({
+                "cell": [clo, chi, q2lo, q2hi],
+                "x_lo": x_lo, "y_lo": y_lo, "e_lo": e_lo,
+                "x_hi": x_hi, "y_hi": y_hi, "e_hi": e_hi,
+                "n": int(m.sum()),
+                "slope": (y_hi - y_lo) / dlnx,
+                "slope_err": float(np.hypot(e_lo, e_hi) / dlnx),
+            })
+    return segs
+
+
+def _aggregate_slopes(segs):
+    """Weighted-mean slope, its stat error, and the RMS cell-to-cell spread."""
+    if not segs:
+        return None
+    s = np.array([g["slope"] for g in segs])
+    w = 1.0 / np.array([g["slope_err"] for g in segs]) ** 2
+    mean = float(np.sum(w * s) / np.sum(w))
+    return {"mean": mean,
+            "stat_err": float(1.0 / np.sqrt(np.sum(w))),
+            "cell_rms": float(np.sqrt(np.average((s - mean) ** 2, weights=w))),
+            "n_cells": len(segs)}
+
+
+def dependence_decomposition(samples):
+    """
+    Direct demonstration that jet structure depends on the color-frame
+    momentum and *not* the lab-frame momentum:
+
+      * "map":        <n90_lab> on the (p_CM, |p|_lab) grid in a narrow
+                      Q^2 window (vertical banding);
+      * "vary_plab":  matched-cell segments: |p|_lab varied at fixed
+                      (p_CM, Q^2)  -> flat;
+      * "vary_pcm":   matched-cell segments: p_CM varied at fixed
+                      (|p|_lab, Q^2) -> steep;
+      * "inclusive":  <n90_lab> vs |p|_lab with p_CM uncontrolled (the
+                      misleading trend, opposite sign: Simpson's paradox);
+      * "trilinear":  global fit n90 = a + b ln p_CM + c ln p_lab + d ln Q^2
+                      (cross-check of the same conclusion).
+    """
+    out = {"pcm_edges": FIG7_PCM_EDGES.tolist(),
+           "plab_edges": FIG7_PLAB_EDGES.tolist(),
+           "q2_narrow": FIG7_Q2_NARROW,
+           "q2_cells": FIG7_Q2_CELLS,
+           "trilinear": {}, "contrasts": {}}
+
+    sel_window = None
+    for variation in ("baseline", "herwig"):
+        d = _combined_baseline(samples, variation=variation)
+        if d is None:
+            continue
+        sel = ((d["pcm"] >= FIG7_PCM_EDGES[0]) & (d["pcm"] < FIG7_PCM_EDGES[-1])
+               & (d["plab"] >= FIG7_PLAB_EDGES[0])
+               & (d["plab"] < FIG7_PLAB_EDGES[-1])
+               & (d["Q2"] >= 25.0) & (d["Q2"] < 400.0))
+        dd = {k: v[sel] for k, v in d.items()}
+
+        # global trilinear fit (both observables)
+        for obs in ("n90lab", "n90cm"):
+            A = np.vstack([np.ones(len(dd["pcm"])), np.log(dd["pcm"]),
+                           np.log(dd["plab"]), np.log(dd["Q2"])]).T
+            y = dd[obs]
+            coef, res, *_ = np.linalg.lstsq(A, y, rcond=None)
+            s2 = float(res[0]) / max(len(y) - 4, 1)
+            cov = s2 * np.linalg.inv(A.T @ A)
+            e = np.sqrt(np.diag(cov))
+            out["trilinear"][f"{variation}|{obs}"] = {
+                "a": float(coef[0]),
+                "dlnpcm": float(coef[1]), "dlnpcm_err": float(e[1]),
+                "dlnplab": float(coef[2]), "dlnplab_err": float(e[2]),
+                "dlnQ2": float(coef[3]), "dlnQ2_err": float(e[3]),
+                "n_jets": int(len(y)),
+            }
+
+        # matched-cell contrasts (primary observable)
+        segs_l = _contrast(dd, "n90lab", "pcm", "plab", FIG7_PCM_EDGES)
+        segs_c = _contrast(dd, "n90lab", "plab", "pcm", FIG7_PLAB_EDGES)
+        out["contrasts"][variation] = {
+            "vary_plab": {"segments": segs_l,
+                          "aggregate": _aggregate_slopes(segs_l)},
+            "vary_pcm": {"segments": segs_c,
+                         "aggregate": _aggregate_slopes(segs_c)},
+        }
+        if variation == "baseline":
+            sel_window = dd
+
+    # 2D map and inclusive profile in the narrow Q^2 window (baseline)
+    d = sel_window
+    mq = (d["Q2"] >= FIG7_Q2_NARROW[0]) & (d["Q2"] < FIG7_Q2_NARROW[1])
+    grid = []
+    for i, (clo, chi) in enumerate(zip(FIG7_PCM_EDGES[:-1], FIG7_PCM_EDGES[1:])):
+        mc = mq & (d["pcm"] >= clo) & (d["pcm"] < chi)
+        for j, (llo, lhi) in enumerate(zip(FIG7_PLAB_EDGES[:-1],
+                                           FIG7_PLAB_EDGES[1:])):
+            m = mc & (d["plab"] >= llo) & (d["plab"] < lhi)
+            n = int(m.sum())
+            if n >= MIN_JETS_PER_BIN:
+                v = d["n90lab"][m]
+                grid.append({"i": i, "j": j, "mean": float(v.mean()),
+                             "sem": float(v.std() / np.sqrt(n)), "n": n})
+    out["map"] = grid
+
+    rows = []
+    for llo, lhi in zip(FIG7_PLAB_EDGES[:-1], FIG7_PLAB_EDGES[1:]):
+        m = mq & (d["plab"] >= llo) & (d["plab"] < lhi)
+        n = int(m.sum())
+        if n >= MIN_JETS_PER_BIN:
+            v = d["n90lab"][m]
+            rows.append({"plab": float(np.exp(np.mean(np.log(d["plab"][m])))),
+                         "mean": float(v.mean()),
+                         "sem": float(v.std() / np.sqrt(n)), "n": n})
+    s_in = _wls_logslope([r["plab"] for r in rows], [r["mean"] for r in rows],
+                         [r["sem"] for r in rows])
+    out["inclusive"] = {"rows": rows, "slope": s_in[1], "slope_err": s_in[2]}
+    return out
+
+
+# ---------------------------------------------------------------------------
 
 def main():
     ap = argparse.ArgumentParser()
@@ -422,6 +604,9 @@ def main():
     print("Fig.1 boost map …")
     bmap = boost_map(samples)
 
+    print("Fig.7 frame-dependence decomposition …")
+    decomp = dependence_decomposition(samples)
+
     results = {
         "binnings": {
             "Q2_main": Q2_MAIN, "Q2_bins": Q2_BINS,
@@ -452,6 +637,7 @@ def main():
         },
         "fig4": proj,
         "fig1": bmap,
+        "fig7": decomp,
     }
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
@@ -484,6 +670,21 @@ def main():
         ann = ANNUAL_FB.get(c)
         print(f"  time to 5 sigma, {c} at design lumi ({ann:g} fb^-1/yr): "
               f"{h:.2g} h")
+    print("  Frame-dependence decomposition (matched-cell contrasts, n90_lab):")
+    for var, con in decomp["contrasts"].items():
+        for key, label in (("vary_plab", "vary p_lab @ fixed (p_CM,Q2)"),
+                           ("vary_pcm", "vary p_CM @ fixed (p_lab,Q2)")):
+            ag = con[key]["aggregate"]
+            if ag:
+                print(f"    {var:8s} {label}: slope = {ag['mean']:+.3f} "
+                      f"+- {ag['stat_err']:.3f} (stat) +- {ag['cell_rms']:.3f} "
+                      f"(cell RMS), {ag['n_cells']} cells")
+    for key, fit in decomp["trilinear"].items():
+        print(f"    trilinear {key}: b_pcm = {fit['dlnpcm']:+.3f}, "
+              f"c_plab = {fit['dlnplab']:+.3f} +- {fit['dlnplab_err']:.3f}, "
+              f"d_Q2 = {fit['dlnQ2']:+.3f}")
+    print(f"    inclusive vs p_lab (Q2 narrow): slope = "
+          f"{decomp['inclusive']['slope']:+.3f} +- {decomp['inclusive']['slope_err']:.3f}")
     for c, si in proj.get("luminosity_inputs", {}).get("per_config", {}).items():
         print(f"  {c}: sigma = {si['sigma_fb']/1e6:.1f} nb, "
               f"{si['jets_per_fb']:.3g} jets/fb^-1, "
