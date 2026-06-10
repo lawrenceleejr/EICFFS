@@ -1,9 +1,13 @@
 # Generated data and output
 data/*.parquet
 data/*.root
+data/*.json
 plots/*.pdf
 plots/*.png
 plots/*.svg
+results/
+
+# Final campaign deliverables are tracked in paper/
 
 # Python
 __pycache__/
@@ -32,3 +36,4 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+logs/

@@ -30,6 +30,9 @@ WORKDIR /work
 
 # Copy all source files
 COPY --chown=$MAMBA_USER:$MAMBA_USER generate_events.py /work/
+COPY --chown=$MAMBA_USER:$MAMBA_USER analyze_jets.py /work/
+COPY --chown=$MAMBA_USER:$MAMBA_USER make_results.py /work/
+COPY --chown=$MAMBA_USER:$MAMBA_USER make_paper_plots.py /work/
 COPY --chown=$MAMBA_USER:$MAMBA_USER analyze_events.py /work/
 COPY --chown=$MAMBA_USER:$MAMBA_USER make_plots.py /work/
 COPY --chown=$MAMBA_USER:$MAMBA_USER utils/ /work/utils/

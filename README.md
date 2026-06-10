@@ -67,20 +67,31 @@ varies with *W* at fixed |p|_lab.  This is the FFS effect at the EIC.
 
 ```
 EICFFS/
+├── ANALYSIS_DESIGN.md       # PRL-target study design (read this first)
+├── RESULTS.md               # Campaign results summary + headline numbers
 ├── Dockerfile               # Container image definition
 ├── docker-compose.yml       # Multi-service orchestration
 ├── environment.yml          # Conda/mamba environment spec
-├── run.sh                   # End-to-end pipeline script
+├── run.sh                   # End-to-end campaign script (4 stages)
 │
-├── generate_events.py       # Step 1 — Pythia8 NC-DIS event generation
-├── analyze_events.py        # Step 2 — FFS analysis → ROOT histograms
-├── make_plots.py            # Step 3 — Publication-quality matplotlib figures
+├── generate_events.py       # Stage 1 — Pythia8 NC-DIS campaign:
+│                            #   3 beam configs × hadronization variations
+├── analyze_jets.py          # Stage 2 — γ*p-frame jets → per-jet tables
+│                            #   (particle level and smeared reco level)
+├── make_results.py          # Stage 3 — profiles, H0 test, collapse metric,
+│                            #   luminosity projections → results.json
+├── make_paper_plots.py      # Stage 4 — the four PRL figures
+│
+├── analyze_events.py        # (legacy) histogram-based analysis
+├── make_plots.py            # (legacy) histogram-based figures
 │
 ├── utils/
 │   ├── __init__.py
-│   └── dis_kinematics.py    # 4-vector math, DIS invariants, frame boosts
+│   ├── dis_kinematics.py    # 4-vector math, DIS invariants, frame boosts
+│   └── smearing.py          # parametric ePIC-like detector smearing
 │
-├── data/                    # Generated events & histograms (gitignored)
+├── data/                    # Generated events & jet tables (gitignored)
+├── results/                 # results.json (gitignored)
 └── plots/                   # Output figures (gitignored)
 ```
 
@@ -127,13 +138,18 @@ conda activate eicffs
 ### Run
 
 ```bash
-# Full pipeline
+# Full campaign (3 beam configs × variations, ~3M events, ~30 min on 4 cores)
 ./run.sh
 
-# Step by step
-python generate_events.py --n-events 200000 --output data/events.parquet --quiet
-python analyze_events.py  data/events.parquet --output data/histograms.root
-python make_plots.py      data/histograms.root --outdir plots/
+# Quick test at 10% statistics
+SCALE=0.1 ./run.sh
+
+# Stage by stage
+python generate_events.py --config 10x100 --n-events 500000 --quiet
+python analyze_jets.py    data/events_10x100_baseline.parquet           # truth
+python analyze_jets.py    data/events_10x100_baseline.parquet --smear   # reco
+python make_results.py    --datadir data --output results/results.json
+python make_paper_plots.py --results results/results.json --outdir plots/
 ```
 
 ---
