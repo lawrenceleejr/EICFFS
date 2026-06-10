@@ -56,6 +56,16 @@ EOF
          python3 generate_events.py {} --quiet > logs/gen_$tag.log 2>&1'
 fi
 
+# ── Stage 1b: Herwig leg (cluster hadronization), if installed ──────────────
+if [ "$SKIP_GEN" = false ]; then
+    if command -v Herwig > /dev/null 2>&1 || [ -x "${HEP_PREFIX:-/opt/hep}/bin/Herwig" ]; then
+        echo "── Stage 1b: Herwig 7 campaign ──"
+        ./run_herwig.sh "$(nev 300000)"
+    else
+        echo "── Stage 1b: Herwig not found; skipping cluster-hadronization leg ──"
+    fi
+fi
+
 # ── Stage 2: jet analysis (truth + smeared reco) ────────────────────────────
 if [ "$SKIP_ANA" = false ]; then
     echo "── Stage 2: jet analysis ──"

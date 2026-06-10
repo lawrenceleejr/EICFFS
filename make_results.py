@@ -53,6 +53,14 @@ SYST_FLOOR = 0.015          # fractional uncertainty floor on <n90> per bin
 SYST_FLOOR_CONS = 0.05      # very conservative floor (robustness curve)
 LUMI_GRID = np.logspace(-4, 2, 49)      # fb^-1
 
+# ── EIC design luminosities ────────────────────────────────────────────────
+# Peak luminosity per e-p beam configuration, EIC Yellow Report
+# (arXiv:2103.05419) Table 10.1 / EIC CDR, high-divergence configuration.
+PEAK_LUMI_1E33 = {"5x41": 0.44, "10x100": 4.48, "18x275": 1.54}  # 1e33/cm^2/s
+ANNUAL_SECONDS = 1.0e7      # CDR operations year (~60% duty factor)
+# 1e33 cm^-2 s^-1 x 1e7 s = 1e40 cm^-2 = 10 fb^-1
+ANNUAL_FB = {c: v * 10.0 for c, v in PEAK_LUMI_1E33.items()}
+
 
 # ---------------------------------------------------------------------------
 # Sample loading
@@ -105,17 +113,17 @@ def fig2_profiles(samples, q2bin=Q2_MAIN, obs="n90lab"):
     return out
 
 
-def h0_anchor(fig2, level="truth"):
+def h0_anchor(fig2, level="truth", variation="baseline"):
     """
     Frame-independent null: for each |p|_lab bin, the <n90_lab> of the
-    lowest populated W bin across all baseline configs at the given level.
+    lowest populated W bin across all configs at the given level/variation.
     """
     anchors = {}
     for pkey in [f"{lo:g}-{hi:g}" for lo, hi in PLAB_BINS]:
         best = None
         for skey, entry in fig2.items():
-            config, variation, lev = skey.split("|")
-            if variation != "baseline" or lev != level:
+            config, var, lev = skey.split("|")
+            if var != variation or lev != level:
                 continue
             for row in entry.get(pkey, []):
                 if best is None or row["W_lo"] < best["W_lo"]:
@@ -126,14 +134,14 @@ def h0_anchor(fig2, level="truth"):
     return anchors
 
 
-def effect_sizes(fig2, anchors, level="truth"):
+def effect_sizes(fig2, anchors, level="truth", variation="baseline"):
     """Relative shift of <n90_lab> at the highest vs lowest populated W."""
     out = {}
     for pkey, anc in anchors.items():
         hi = None
         for skey, entry in fig2.items():
-            config, variation, lev = skey.split("|")
-            if variation != "baseline" or lev != level:
+            config, var, lev = skey.split("|")
+            if var != variation or lev != level:
                 continue
             for row in entry.get(pkey, []):
                 if hi is None or row["W_lo"] > hi["W_lo"]:
@@ -172,11 +180,12 @@ def q2_crosscheck(samples):
 # Fig. 3: splay (lab) vs collapse (CM)
 # ---------------------------------------------------------------------------
 
-def slice_profiles(samples, var_x, var_y, edges, q2bin=Q2_MAIN):
-    """Profiles of var_y vs var_x per (config, W slice), baseline truth."""
+def slice_profiles(samples, var_x, var_y, edges, q2bin=Q2_MAIN,
+                   variation="baseline"):
+    """Profiles of var_y vs var_x per (config, W slice), truth level."""
     out = {}
-    for (config, variation, level), (d, meta) in samples.items():
-        if variation != "baseline" or level != "truth":
+    for (config, var, level), (d, meta) in samples.items():
+        if var != variation or level != "truth":
             continue
         q2m = (d["Q2"] >= q2bin[0]) & (d["Q2"] < q2bin[1])
         for wlo, whi in W_SLICES[config]:
@@ -248,6 +257,7 @@ def luminosity_projection(samples, q2bin=Q2_MAIN):
 
     # jets per fb^-1 per bin
     rates = {}
+    sample_info = {}
     for skey, entry in f2.items():
         config, variation, level = skey.split("|")
         if variation != "baseline" or level != "reco":
@@ -258,6 +268,14 @@ def luminosity_projection(samples, q2bin=Q2_MAIN):
         rates[config] = {
             pkey: [dict(r, rate=r["n"] * per_event) for r in rows]
             for pkey, rows in entry.items()
+        }
+        sample_info[config] = {
+            "sigma_fb": sigma_fb,
+            "events_per_fb": sigma_fb,                       # DIS events
+            "jets_per_fb": meta["n_jets"] * per_event,       # selected jets
+            "annual_fb": ANNUAL_FB.get(config),
+            "peak_lumi_1e33": PEAK_LUMI_1E33.get(config),
+            "mc_equiv_fb": meta["n_tried"] / sigma_fb,       # MC sample size
         }
 
     results = {"lumi_grid": LUMI_GRID.tolist(), "configs": {}}
@@ -304,6 +322,13 @@ def luminosity_projection(samples, q2bin=Q2_MAIN):
         "significance_syst_cons": np.sqrt(comb[2]).tolist(),
     }
 
+    results["luminosity_inputs"] = {
+        "source": "EIC Yellow Report (arXiv:2103.05419) Table 10.1 / CDR, "
+                  "high-divergence configuration; "
+                  f"operations year = {ANNUAL_SECONDS:.0e} s",
+        "per_config": sample_info,
+    }
+
     def l_5sigma(sig):
         sig = np.asarray(sig)
         above = np.where(sig >= 5.0)[0]
@@ -317,6 +342,13 @@ def luminosity_projection(samples, q2bin=Q2_MAIN):
         **{f"{c}_syst": l_5sigma(v["significance_syst"])
            for c, v in results["configs"].items()},
     }
+    # running time to 5 sigma at design luminosity, per configuration
+    results["time_to_5sigma_hours"] = {}
+    for c, v in results["configs"].items():
+        L5 = l_5sigma(v["significance_syst"])
+        if L5 is not None and c in ANNUAL_FB:
+            results["time_to_5sigma_hours"][c] = \
+                L5 / ANNUAL_FB[c] * ANNUAL_SECONDS / 3600.0
     return results
 
 
@@ -359,6 +391,9 @@ def main():
     anchors = h0_anchor(f2_truth)
     eff = effect_sizes(f2_truth, anchors)
     eff_reco = effect_sizes(f2_truth, h0_anchor(f2_truth, "reco"), "reco")
+    eff_herwig = effect_sizes(
+        f2_truth, h0_anchor(f2_truth, variation="herwig"),
+        variation="herwig")
 
     print("Q^2 cross-check …")
     q2x = q2_crosscheck(samples)
@@ -368,6 +403,18 @@ def main():
     collapse = slice_profiles(samples, "pcm", "n90cm", PCM_EDGES)
     chi2_lab, ndf_lab, spread_lab = collapse_chi2(splay, PLAB_FINE)
     chi2_cm, ndf_cm, spread_cm = collapse_chi2(collapse, PCM_EDGES)
+
+    # same metric for the cluster-hadronization (Herwig) samples, if present
+    herwig_univ = None
+    splay_h = slice_profiles(samples, "plab", "n90lab", PLAB_FINE,
+                             variation="herwig")
+    if splay_h:
+        collapse_h = slice_profiles(samples, "pcm", "n90cm", PCM_EDGES,
+                                    variation="herwig")
+        _, _, sp_lab_h = collapse_chi2(splay_h, PLAB_FINE)
+        _, _, sp_cm_h = collapse_chi2(collapse_h, PCM_EDGES)
+        herwig_univ = {"spread_lab": sp_lab_h, "spread_cm": sp_cm_h,
+                       "restoration_factor": sp_lab_h / max(sp_cm_h, 1e-12)}
 
     print("Fig.4 luminosity projection …")
     proj = luminosity_projection(samples)
@@ -391,6 +438,7 @@ def main():
         "h0_anchors": anchors,
         "effect_sizes_truth": eff,
         "effect_sizes_reco": eff_reco,
+        "effect_sizes_herwig": eff_herwig,
         "q2_crosscheck": q2x,
         "fig3": {
             "splay": splay, "collapse": collapse,
@@ -400,6 +448,7 @@ def main():
             "chi2ndf_cm": chi2_cm / max(ndf_cm, 1),
             "spread_lab": spread_lab, "spread_cm": spread_cm,
             "restoration_factor": spread_lab / max(spread_cm, 1e-12),
+            "herwig": herwig_univ,
         },
         "fig4": proj,
         "fig1": bmap,
@@ -422,8 +471,23 @@ def main():
           f"(restoration x{results['fig3']['restoration_factor']:.1f})")
     print(f"  [chi2/ndf at MC stats: lab = {results['fig3']['chi2ndf_lab']:.1f}, "
           f"CM = {results['fig3']['chi2ndf_cm']:.1f}]")
+    if herwig_univ:
+        print(f"  Herwig universality RMS spread: "
+              f"lab = {100*herwig_univ['spread_lab']:.1f}%, "
+              f"CM = {100*herwig_univ['spread_cm']:.1f}%")
+    for pkey, e in eff_herwig.items():
+        print(f"  Herwig FFS shift, plab {pkey} GeV: "
+              f"{100*e['shift']:+.1f} +- {100*e['err']:.1f} %")
     for k, v in proj["L_5sigma_fb"].items():
         print(f"  L(5 sigma) {k}: {v if v is not None else '> grid'} fb^-1")
+    for c, h in proj.get("time_to_5sigma_hours", {}).items():
+        ann = ANNUAL_FB.get(c)
+        print(f"  time to 5 sigma, {c} at design lumi ({ann:g} fb^-1/yr): "
+              f"{h:.2g} h")
+    for c, si in proj.get("luminosity_inputs", {}).get("per_config", {}).items():
+        print(f"  {c}: sigma = {si['sigma_fb']/1e6:.1f} nb, "
+              f"{si['jets_per_fb']:.3g} jets/fb^-1, "
+              f"MC sample = {si['mc_equiv_fb']*1000:.1f} pb^-1 equivalent")
 
 
 if __name__ == "__main__":

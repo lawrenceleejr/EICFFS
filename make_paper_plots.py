@@ -173,8 +173,15 @@ def fig2(res, outdir):
                        label=r"$H_0$: frame-indep. frag."),
                 ]
     ax.legend(handles=handles, ncol=2, loc="upper left", fontsize=10.5)
-    ax.text(0.97, 0.05, EIC_LABEL + "\n" + SEL_LABEL, transform=ax.transAxes,
-            fontsize=10, ha="right")
+    lumi_note = ""
+    li = res.get("fig4", {}).get("luminosity_inputs", {}).get("per_config", {})
+    if li:
+        mc_pb = min(v["mc_equiv_fb"] for v in li.values()) * 1e3
+        ann = [v["annual_fb"] for v in li.values() if v.get("annual_fb")]
+        lumi_note = (f"\nMC stats $\\approx$ first {mc_pb:.0f} pb$^{{-1}}$; "
+                     f"1 EIC yr = {min(ann):.0f}--{max(ann):.0f} fb$^{{-1}}$")
+    ax.text(0.97, 0.05, EIC_LABEL + "\n" + SEL_LABEL + lumi_note,
+            transform=ax.transAxes, fontsize=10, ha="right")
     ax.set_title("Frame-dependent fragmentation shift at the EIC", fontsize=14)
     _saveplot(fig, outdir, "fig2_ffs_main.pdf")
 
@@ -254,9 +261,17 @@ def fig4(res, outdir):
     L = np.array(proj["lumi_grid"])
     fig, ax = plt.subplots(figsize=(8, 6))
 
+    lumi_info = proj.get("luminosity_inputs", {}).get("per_config", {})
     for config, v in proj["configs"].items():
         ax.plot(L, v["significance_syst"], color=CONFIG_COLORS[config], lw=1.4,
                 alpha=0.8, label=CONFIG_LABELS[config] + " GeV")
+        ann = lumi_info.get(config, {}).get("annual_fb")
+        if ann:
+            for Lmark, mk, ms in ((ann / 365.25, "D", 7), (ann, "*", 16)):
+                sig_m = np.interp(np.log10(Lmark), np.log10(L),
+                                  v["significance_syst"])
+                ax.plot(Lmark, sig_m, mk, color=CONFIG_COLORS[config],
+                        ms=ms, mec="k", mew=0.6, zorder=5)
     syst = res["binnings"]["syst_floor"]
     cons = res["binnings"].get("syst_floor_cons", 0.05)
     ax.plot(L, proj["combined"]["significance_syst"], "k-", lw=2.6,
@@ -274,16 +289,72 @@ def fig4(res, outdir):
     ax.set_yscale("log")
     ax.set_xlabel(r"integrated luminosity per configuration [fb$^{-1}$]")
     ax.set_ylabel(r"expected significance of $H_0$ rejection [$\sigma$]")
-    ax.legend(loc="upper left", fontsize=11,
+    from matplotlib.lines import Line2D
+    handles, labels = ax.get_legend_handles_labels()
+    handles += [Line2D([], [], marker="D", color="gray", ls="", ms=7,
+                       mec="k", label="1 day at design lumi."),
+                Line2D([], [], marker="*", color="gray", ls="", ms=14,
+                       mec="k", label="1 year at design lumi.")]
+    ax.legend(handles=handles, loc="upper left", fontsize=11,
               title="reco level: track jets, smeared,\nelectron-method $W$",
               title_fontsize=10)
     ax.set_title("EIC discovery reach for frame-dependent fragmentation",
                  fontsize=14)
     syst = res["binnings"]["syst_floor"]
     ax.text(0.97, 0.04, EIC_LABEL +
-            f"\nsyst floor {100*syst:.1f}% per bin", transform=ax.transAxes,
+            f"\nsyst floor {100*syst:.1f}% per bin"
+            "\ndesign lumi: EIC YR Tab. 10.1", transform=ax.transAxes,
             fontsize=10, ha="right")
     _saveplot(fig, outdir, "fig4_projection.pdf")
+
+
+# ---------------------------------------------------------------------------
+# Fig. 5 — hadronization-model comparison (Lund string vs cluster)
+# ---------------------------------------------------------------------------
+
+def fig5(res, outdir):
+    f2 = res["fig2"]
+    have_herwig = any(k.split("|")[1] == "herwig" for k in f2)
+    if not have_herwig:
+        print("  (no Herwig samples; skipping fig5)")
+        return
+
+    pkeys = [f"{lo:g}-{hi:g}" for lo, hi in res["binnings"]["plab_bins"]][:4]
+    fig, axes = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
+    variants = [("baseline", "-", "o", "Pythia 8 (string, Monash)"),
+                ("lund-soft", ":", "", "Pythia 8 string variations"),
+                ("lund-hard", ":", "", None),
+                ("herwig", "--", "s", "Herwig 7.3 (cluster)")]
+
+    for ax, pkey in zip(axes.ravel(), pkeys):
+        for variation, ls, mk, label in variants:
+            shown = False
+            for config in CONFIG_MARKERS:
+                rows = f2.get(f"{config}|{variation}|truth", {}).get(pkey, [])
+                if not rows:
+                    continue
+                color = ("#CC3311" if variation == "herwig" else
+                         "#004488" if variation == "baseline" else "#88AAcc")
+                ax.errorbar([r["W_center"] for r in rows],
+                            [r["mean"] for r in rows],
+                            yerr=[r["sem"] for r in rows],
+                            ls=ls, marker=mk, ms=4, lw=1.4, color=color,
+                            label=(label if (label and not shown) else None))
+                shown = True
+        ax.set_xscale("log")
+        ax.text(0.05, 0.88, rf"$|p|_{{\rm lab}} \in [{pkey.replace('-', ',')})$ GeV",
+                transform=ax.transAxes, fontsize=12)
+    for ax in axes[1]:
+        ax.set_xlabel(r"$W$ [GeV]")
+        ax.set_xticks([10, 20, 50, 100])
+        ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    for ax in axes[:, 0]:
+        ax.set_ylabel(r"$\langle n_{90}\rangle$ (lab frame)")
+    axes[0, 0].legend(fontsize=11, loc="lower right")
+    axes[0, 1].text(0.95, 0.05, EIC_LABEL + "\n" + SEL_LABEL,
+                    transform=axes[0, 1].transAxes, fontsize=9, ha="right")
+    fig.suptitle("FFS trend: string vs cluster hadronization", fontsize=15)
+    _saveplot(fig, outdir, "fig5_generators.pdf")
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +371,7 @@ def main():
     fig2(res, args.outdir)
     fig3(res, args.outdir)
     fig4(res, args.outdir)
+    fig5(res, args.outdir)
     print("Done.")
 
 

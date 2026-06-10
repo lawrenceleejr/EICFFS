@@ -1,0 +1,55 @@
+# -*- ThePEG-repository -*-
+##############################################################################
+# EIC NC-DIS run card for the FFS study (Herwig 7.3, cluster hadronization)
+#
+# Template placeholders (filled by run_herwig.sh):
+#   @EE@      electron beam energy [GeV]
+#   @EP@      proton beam energy [GeV]
+#   @Q2MIN@ / @Q2MAX@   photon virtuality range [GeV^2]
+#   @HEPMC@   HepMC2 ASCII output path
+#   @RUN@     run name
+#
+# Mirrors the Pythia settings of generate_events.py: NC only, MPI off
+# (EPCollider.in default), no QED FSR off the lepton (EPCollider.in default),
+# fixed monochromatic beams.
+##############################################################################
+
+read snippets/EPCollider.in
+
+##################################################
+# Technical parameters (as in the shipped DIS.in)
+##################################################
+cd /Herwig/Generators
+set /Herwig/Shower/ShowerHandler:PDFB /Herwig/Partons/ShowerLOPDF
+set /Herwig/Partons/MPIExtractor:SecondPDF  /Herwig/Partons/MPIPDF
+set /Herwig/Partons/EPExtractor:SecondPDF  /Herwig/Partons/HardNLOPDF
+
+##################################################
+# Beams: electron = BeamA, proton = BeamB
+# (converter rotates to the EICFFS convention, proton along +z)
+##################################################
+cd /Herwig/EventHandlers
+set Luminosity:BeamEMaxA @EE@*GeV
+set Luminosity:BeamEMaxB @EP@*GeV
+
+##################################################
+# Neutral-current DIS only
+##################################################
+cd /Herwig/MatrixElements/
+insert SubProcess:MatrixElements[0] MEDISNC
+
+##################################################
+# Phase space
+##################################################
+set /Herwig/Cuts/NeutralCurrentCut:MinQ2 @Q2MIN@
+set /Herwig/Cuts/NeutralCurrentCut:MaxQ2 @Q2MAX@
+
+##################################################
+# HepMC2 ASCII output
+##################################################
+read snippets/HepMC.in
+set /Herwig/Analysis/HepMC:PrintEvent 100000000
+set /Herwig/Analysis/HepMC:Filename @HEPMC@
+
+cd /Herwig/Generators
+saverun @RUN@ EventGenerator

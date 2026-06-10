@@ -17,6 +17,11 @@ dependencies:
   - tqdm
   - pyarrow
   - pandas
+  - pyhepmc       # HepMC reading (Herwig leg)
   - pip
   - pip:
       - mplhep
+# Note: the Herwig 7 leg (run_herwig.sh) needs a Herwig installation,
+# which is not available via conda-forge or PyPI.  Build from source
+# (LHAPDF + HepMC2 + fastjet + ThePEG + Herwig, see RESULTS.md) or use
+# an LCG/CVMFS environment, then set HEP_PREFIX.
