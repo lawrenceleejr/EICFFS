@@ -167,9 +167,11 @@ Two corroborating observations:
    frame and the hard scale in the model, the lab momentum coefficient is
    1.5% of the color-frame coefficient.
 
-Fig. 7(a) shows the same fact as a landscape: ⟨n₉₀ˡᵃᵇ⟩ on the
-(p_CM, |p|_lab) plane at fixed Q² exhibits **vertical banding** —
-iso-structure lines are lines of constant color-frame momentum.
+Fig. 7 shows the two segment families side by side — flat (left) versus
+steep (right), with both models' slopes quoted per panel; the underlying
+(p_CM, |p|_lab) landscape grid is kept in `results.json` ("fig7.map") and
+exhibits vertical banding — iso-structure lines are lines of constant
+color-frame momentum.
 
 *Relation to the W/Z case:* the flat segments of Fig. 7(b) are the DIS
 realization of "a W-daughter jet has the same structure at any lab p_T"

@@ -544,16 +544,13 @@ def fig6(res, outdir):
 
 def fig7(res, outdir):
     """
-    Direct demonstration that jet structure depends on the color-frame
-    momentum and not the lab-frame momentum.
-
-    (a) <n90_lab> on the (p_CM, |p|_lab) plane at fixed Q^2: vertical
-        banding -- iso-structure lines are lines of constant p_CM.
-    (b) matched-cell contrast: within narrow (p_CM, Q^2) cells, jets split
-        at the median |p|_lab (flat segments: nothing happens), mirrored
-        by (|p|_lab, Q^2) cells split in p_CM (steep segments).  The
-        inclusive |p|_lab trend (dotted) even has the opposite sign --
-        Simpson's paradox: lab momentum has no intrinsic explanatory power.
+    Matched-cell contrast: within narrow (p_CM, Q^2) cells, jets split at
+    the median |p|_lab (flat segments: varying the lab momentum at fixed
+    color configuration does nothing), mirrored by (|p|_lab, Q^2) cells
+    split in p_CM (steep segments).  The inclusive |p|_lab trend (dotted)
+    even has the opposite sign -- Simpson's paradox: lab momentum has no
+    intrinsic explanatory power.  Each panel quotes the aggregate slope
+    for both hadronization models.
     """
     f7 = res.get("fig7")
     if not f7:
@@ -561,45 +558,24 @@ def fig7(res, outdir):
         return
 
     pcm_e = np.array(f7["pcm_edges"])
-    plab_e = np.array(f7["plab_edges"])
     cmap = plt.get_cmap("viridis")
     norm = matplotlib.colors.LogNorm(vmin=pcm_e[0], vmax=pcm_e[-1])
 
-    fig = plt.figure(figsize=(14.2, 5.4))
-    gs = fig.add_gridspec(1, 3, width_ratios=[1.5, 1, 1], wspace=0.26)
-    axm = fig.add_subplot(gs[0])
-    axl = fig.add_subplot(gs[1])
-    axc = fig.add_subplot(gs[2], sharey=axl)
-
-    # ── (a) the landscape ──────────────────────────────────────────────────
-    Z = np.full((len(plab_e) - 1, len(pcm_e) - 1), np.nan)
-    for r in f7["map"]:
-        Z[r["j"], r["i"]] = r["mean"]
-    pc = axm.pcolormesh(pcm_e, plab_e, np.ma.masked_invalid(Z),
-                        cmap="viridis", shading="flat", rasterized=True)
-    axm.set_xscale("log")
-    axm.set_yscale("log")
-    axm.set_xlabel(r"$p_{\rm CM}$ [GeV]")
-    axm.set_ylabel(r"$|p|_{\rm lab}$ [GeV]")
-    for axis in (axm.get_xaxis(), axm.get_yaxis()):
-        axis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
-        axis.set_minor_formatter(matplotlib.ticker.NullFormatter())
-    axm.set_xticks([5, 10, 20, 40])
-    axm.set_yticks([5, 10, 20, 40, 70])
-    cb = fig.colorbar(pc, ax=axm, pad=0.02, aspect=30)
-    cb.set_label(r"$\langle n_{90}\rangle$ (lab frame)")
-    cb.outline.set_visible(False)
-    cb.ax.tick_params(size=0)
-    q2lo, q2hi = f7["q2_narrow"]
-    axm.text(0.03, 0.96, rf"${q2lo:g} < Q^2 < {q2hi:g}$ GeV$^2$",
-             transform=axm.transAxes, fontsize=10.5, color="0.3", va="top")
-    axm.text(0.03, 0.04, "vertical banding:\nstructure set by $p_{\\rm CM}$ alone",
-             transform=axm.transAxes, fontsize=11, color="white",
-             style="italic", va="bottom")
-
-    # ── (b) matched-cell contrasts ─────────────────────────────────────────
+    fig, (axl, axc) = plt.subplots(1, 2, figsize=(11.5, 5.4), sharey=True,
+                                   gridspec_kw={"wspace": 0.08})
     con = f7["contrasts"]["baseline"]
+    hw = f7["contrasts"].get("herwig", {})
 
+    def slope_label(key):
+        lines = []
+        for var, name in (("baseline", "Pythia 8"), ("herwig", "Herwig 7")):
+            ag = f7["contrasts"].get(var, {}).get(key, {}).get("aggregate")
+            if ag:
+                lines.append(rf"{name}: ${ag['mean']:+.2f} \pm "
+                             rf"{max(ag['stat_err'], 0.005):.2f}$")
+        return "\n".join(lines)
+
+    # ── vary |p|_lab at fixed (p_CM, Q^2): nothing happens ────────────────
     for seg in con["vary_plab"]["segments"]:
         c = cmap(norm(np.sqrt(seg["cell"][0] * seg["cell"][1])))
         axl.plot([seg["x_lo"], seg["x_hi"]], [seg["y_lo"], seg["y_hi"]],
@@ -608,18 +584,15 @@ def fig7(res, outdir):
     rows = f7["inclusive"]["rows"]
     axl.plot([r["plab"] for r in rows], [r["mean"] for r in rows],
              ls=":", color="0.25", lw=1.4)
-    axl.annotate("inclusive\n(p$_{\\rm CM}$ uncontrolled)",
-                 (rows[-1]["plab"], rows[-1]["mean"]), xytext=(0, -26),
-                 textcoords="offset points", fontsize=9.5, color="0.3",
+    axl.annotate("inclusive\n($p_{\\rm CM}$ uncontrolled)",
+                 (rows[-1]["plab"], rows[-1]["mean"]), xytext=(0, -28),
+                 textcoords="offset points", fontsize=10, color="0.3",
                  ha="right")
-    ag = con["vary_plab"]["aggregate"]
     axl.set_title("vary $|p|_{\\rm lab}$ at fixed $(p_{\\rm CM}, Q^2)$",
-                  fontsize=12.5, color="0.15", loc="left")
-    axl.text(0.04, 0.97, "nothing happens:\n"
-             rf"slope $= {ag['mean']:+.3f} \pm {ag['stat_err']:.3f}$"
-             rf"$\,\pm\,{ag['cell_rms']:.2f}$ (cells)",
-             transform=axl.transAxes, fontsize=11, va="top", style="italic",
-             color="0.25")
+                  fontsize=13, color="0.15", loc="left")
+    axl.text(0.04, 0.97, "nothing happens — slope per e-fold:\n"
+             + slope_label("vary_plab"),
+             transform=axl.transAxes, fontsize=11.5, va="top", color="0.2")
     axl.set_xscale("log")
     axl.set_xlabel(r"$|p|_{\rm lab}$ [GeV]")
     axl.set_ylabel(r"$\langle n_{90}\rangle$ (lab frame)")
@@ -627,19 +600,17 @@ def fig7(res, outdir):
     axl.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     axl.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
 
+    # ── vary p_CM at fixed (|p|_lab, Q^2): the structure shifts ───────────
     for seg in con["vary_pcm"]["segments"]:
         c = cmap(norm(np.sqrt(seg["x_lo"] * seg["x_hi"])))
         axc.plot([seg["x_lo"], seg["x_hi"]], [seg["y_lo"], seg["y_hi"]],
                  "-", color=c, lw=1.6, marker="o", ms=3, mec="none",
                  alpha=0.95)
-    ag = con["vary_pcm"]["aggregate"]
     axc.set_title("vary $p_{\\rm CM}$ at fixed $(|p|_{\\rm lab}, Q^2)$",
-                  fontsize=12.5, color="0.15", loc="left")
-    axc.text(0.04, 0.97, "structure shifts:\n"
-             rf"slope $= {ag['mean']:+.2f} \pm {ag['stat_err']:.2f}$"
-             rf"$\,\pm\,{ag['cell_rms']:.2f}$ (cells)",
-             transform=axc.transAxes, fontsize=11, va="top", style="italic",
-             color="0.25")
+                  fontsize=13, color="0.15", loc="left")
+    axc.text(0.04, 0.97, "structure shifts — slope per e-fold:\n"
+             + slope_label("vary_pcm"),
+             transform=axc.transAxes, fontsize=11.5, va="top", color="0.2")
     axc.set_xscale("log")
     axc.set_xlabel(r"$p_{\rm CM}$ [GeV]")
     axc.set_xticks([5, 10, 20, 40])
@@ -647,13 +618,19 @@ def fig7(res, outdir):
     axc.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
     plt.setp(axc.get_yticklabels(), visible=False)
 
-    hw = f7["contrasts"].get("herwig")
-    note = EIC_LABEL
-    if hw and hw["vary_plab"]["aggregate"]:
-        note += (f"\nHerwig 7: ${hw['vary_plab']['aggregate']['mean']:+.2f}$"
-                 f" vs ${hw['vary_pcm']['aggregate']['mean']:+.2f}$")
-    axc.text(0.96, 0.04, note, transform=axc.transAxes, fontsize=9.5,
-             ha="right", color="0.45")
+    axc.text(0.96, 0.04, "EIC NC-DIS, Pythia 8 segments\n"
+             r"cells: $Q^2 \in [25, 400]$ GeV$^2$",
+             transform=axc.transAxes, fontsize=9.5, ha="right", color="0.45")
+    axl.set_ylim(3.2, 8.6)      # headroom for the slope labels
+
+    # segment color encodes the cell's p_CM
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    cb = fig.colorbar(sm, ax=[axl, axc], pad=0.015, aspect=32)
+    cb.set_label(r"cell $p_{\rm CM}$ [GeV]")
+    cb.outline.set_visible(False)
+    cb.ax.tick_params(size=0)
+    cb.ax.set_yticks([5, 10, 20, 40])
+    cb.ax.set_yticklabels(["5", "10", "20", "40"])
 
     tufte(axl)
     tufte(axc)
