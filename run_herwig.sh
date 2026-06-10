@@ -58,23 +58,24 @@ run_one() {
     (cd "$wd" && Herwig read "$run.in" > read.log 2>&1)
 
     echo "[$config] Herwig run: $N_EVENTS events"
+    local seed
+    seed="$(seed_for "$config")"
     (cd "$wd" && Herwig run "$run.run" -N "$N_EVENTS" \
-        -s "$(seed_for "$config")" -d 0 > run.log 2>&1)
+        -s "$seed" -d 0 > run.log 2>&1)
 
     # Parse generated cross section from the ThePEG .out file -> fb
     local sigma_fb
-    sigma_fb=$(python3 - "$wd/$run.out" <<'PYEOF'
+    sigma_fb=$(python3 - "$wd/$run-S$seed.out" <<'PYEOF'
 import re, sys
 txt = open(sys.argv[1]).read()
-m = re.search(r"total cross section\s*=\s*([0-9.eE+-]+)\s*\(?\s*([a-zA-Z]+)\b",
-              txt) or \
-    re.search(r"cross-?section[^0-9]*([0-9.eE+-]+)\s*\(?\s*([a-zA-Z]+)\b", txt,
-              re.IGNORECASE)
+# Herwig/ThePEG format: "Total (from attempted events): ... 12.4(1)e+00"
+# in the units given in the table header (nb).
+m = re.search(r"Total \(from attempted events\).*?([0-9.]+)\(\d+\)e([+-]\d+)",
+              txt)
 if not m:
     sys.exit("could not parse cross section from " + sys.argv[1])
-val, unit = float(m.group(1)), m.group(2).lower()
-scale = {"fb": 1.0, "pb": 1e3, "nb": 1e6, "mub": 1e9, "mb": 1e12}
-print(val * scale[unit])
+val = float(m.group(1)) * 10.0**int(m.group(2))     # nb
+print(val * 1e6)                                     # fb
 PYEOF
 )
     echo "[$config] sigma = $sigma_fb fb"

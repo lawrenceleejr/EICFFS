@@ -62,11 +62,21 @@ def main():
 
     n_read = 0
     n_saved = 0
+    flip = None        # rotate by pi about y if the proton runs along -z
     with pyhepmc.open(args.input) as f:
         for evt in f:
             n_read += 1
             if args.max_events and n_saved >= args.max_events:
                 break
+
+            if flip is None:
+                for prt in evt.particles:
+                    if prt.status == 4 and prt.pid == 2212:
+                        flip = prt.momentum.pz < 0
+                        break
+                if flip is None:
+                    continue
+            s = -1.0 if flip else 1.0
 
             k_out = None
             best_E = -1.0
@@ -78,11 +88,11 @@ def main():
                 m = prt.momentum
                 if pid == 11 and m.e > best_E:        # scattered electron
                     best_E = m.e
-                    k_out = (m.px, m.py, m.pz, m.e)
+                    k_out = (s * m.px, m.py, s * m.pz, m.e)
                     continue
                 if abs(pid) in {11, 12, 13, 14, 15, 16}:
                     continue
-                hadrons.append((m.px, m.py, m.pz, m.e, charge_of(pid)))
+                hadrons.append((s * m.px, m.py, s * m.pz, m.e, charge_of(pid)))
             if k_out is None:
                 continue
 

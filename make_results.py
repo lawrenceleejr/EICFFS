@@ -45,7 +45,7 @@ W_SLICES = {
 PCM_EDGES = np.array([2, 4, 6, 8, 10, 12, 15, 18, 22, 27, 33, 40, 50, 65.])
 PLAB_FINE = np.array([3, 4.5, 6, 8, 10, 13, 17, 22, 28, 36, 46, 60.])
 
-MIN_JETS_PER_BIN = 100
+MIN_JETS_PER_BIN = 250
 BULK_FRACTION = 0.10        # universality metric: keep bins with
                             # n >= BULK_FRACTION * (slice's most populated bin),
                             # excluding sparse radiative-tail populations
