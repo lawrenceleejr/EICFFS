@@ -126,6 +126,69 @@ days at design luminosity given the sub-percent statistical precision).
 
 ---
 
+## Implication for the LHC: quantifying the jet-individualism bias (Fig. 6)
+
+Essentially all LHC jet methodology rests on **jet individualism**: the
+assumption that a jet's internal structure is a universal function of its
+own laboratory kinematics (p_T, η) and flavor, independent of the event
+that produced it.  Jet energy calibrations are derived in QCD dijet and
+γ/Z+jet topologies and applied everywhere; quark/gluon, W/Z/H, and top
+taggers are trained on specific samples and deployed across signal
+hypotheses; substructure templates are transported between processes.
+
+The FFS effect breaks this assumption in a calculable direction, and this
+measurement quantifies by how much.  The EIC-measured universal curve is
+
+> ⟨n₉₀⟩ = 2.48 + 0.835 ln (p_CM / GeV),
+
+i.e. **a 10% error in the assumed color-frame momentum is a ~1.5% bias in
+⟨n₉₀⟩**, and topologies whose color frames differ by an order of magnitude
+in p_CM differ by ~2 units of ⟨n₉₀⟩.  At the LHC, two jets with *identical*
+laboratory kinematics sit at very different points of this curve:
+
+| Jet at lab p_T = 200 GeV | color system → p_CM | ⟨n₉₀⟩ from the curve |
+|---|---|---|
+| daughter of a boosted W/Z (color-singlet qq̄) | m_V/2 ≈ 45 GeV, *independent of lab p_T* | 5.66 |
+| QCD jet (color-connected to beam/event) | ≈ p_T = 200 GeV | 6.91 |
+
+→ **Δ⟨n₉₀⟩ = 1.25, a 22% relative bias at identical lab kinematics**,
+growing to **≈ 46%** for a 1-TeV QCD jet compared against any
+electroweak-daughter jet (Fig. 6).  Multiplicity-sensitive observables —
+precisely the inputs that dominate quark/gluon tagging and feed W/top
+tagger training — are therefore **not transportable across topologies at
+the few-percent level at which LHC calibrations are quoted**; the
+violation is a 20–50% effect in the observables themselves.
+
+Three caveats sharpen rather than weaken the point:
+
+1. Part of the known W-jet/QCD-jet difference at the LHC is flavor and
+   color-singlet coherence; the FFS contribution is the *frame* piece.
+   Shower MCs include it implicitly (they hadronize in the color frame),
+   so MC-mediated calibrations absorb much of it — **but purely
+   data-driven transports of substructure between topologies, and any
+   analysis trusting lab-frame universality beyond the MC, inherit the
+   full bias**.
+2. The MC modeling of the frame piece has never been experimentally
+   isolated: at the LHC the color frame is not reconstructable
+   event-by-event.  At the EIC it is.  This measurement would convert the
+   topology dependence of LHC jet substructure from "simulated" to
+   "experimentally anchored", with the string-vs-cluster spread (5–10% in
+   absolute ⟨n₉₀⟩, Fig. 5) as the current modeling uncertainty to be
+   resolved by data.
+3. The extrapolation in Fig. 6 (45 GeV → 1 TeV is ×4 beyond the measured
+   p_CM range in ln p) assumes the logarithmic growth continues; the
+   EIC measurement pins the curve exactly in the region (tens of GeV)
+   where LHC electroweak-daughter jets actually fragment, which is the
+   regime that matters for boosted-boson tagging.
+
+In short: the EIC measurement would demonstrate, with per-mille
+statistical precision and in data, that "same jet kinematics ⇒ same jet"
+is false at the tens-of-percent level for multiplicity observables — and
+would replace that assumption with a measured universal function of the
+color-frame momentum that LHC calibrations can consume directly.
+
+---
+
 ## Reproducing
 
 ```bash
