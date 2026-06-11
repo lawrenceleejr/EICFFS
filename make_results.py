@@ -542,18 +542,22 @@ def dependence_decomposition(samples):
                              "sem": float(v.std() / np.sqrt(n)), "n": n})
     out["map"] = grid
 
-    rows = []
-    for llo, lhi in zip(FIG7_PLAB_EDGES[:-1], FIG7_PLAB_EDGES[1:]):
-        m = mq & (d["plab"] >= llo) & (d["plab"] < lhi)
-        n = int(m.sum())
-        if n >= MIN_JETS_PER_BIN:
-            v = d["n90lab"][m]
-            rows.append({"plab": float(np.exp(np.mean(np.log(d["plab"][m])))),
-                         "mean": float(v.mean()),
-                         "sem": float(v.std() / np.sqrt(n)), "n": n})
-    s_in = _wls_logslope([r["plab"] for r in rows], [r["mean"] for r in rows],
-                         [r["sem"] for r in rows])
-    out["inclusive"] = {"rows": rows, "slope": s_in[1], "slope_err": s_in[2]}
+    def inclusive_profile(var, edges):
+        rows = []
+        for lo, hi in zip(edges[:-1], edges[1:]):
+            m = mq & (d[var] >= lo) & (d[var] < hi)
+            n = int(m.sum())
+            if n >= MIN_JETS_PER_BIN:
+                v = d["n90lab"][m]
+                rows.append({"x": float(np.exp(np.mean(np.log(d[var][m])))),
+                             "mean": float(v.mean()),
+                             "sem": float(v.std() / np.sqrt(n)), "n": n})
+        s = _wls_logslope([r["x"] for r in rows], [r["mean"] for r in rows],
+                          [r["sem"] for r in rows])
+        return {"rows": rows, "slope": s[1], "slope_err": s[2]}
+
+    out["inclusive"] = inclusive_profile("plab", FIG7_PLAB_EDGES)
+    out["inclusive_pcm"] = inclusive_profile("pcm", FIG7_PCM_EDGES)
     return out
 
 

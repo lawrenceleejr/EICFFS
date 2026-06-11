@@ -581,13 +581,6 @@ def fig7(res, outdir):
         axl.plot([seg["x_lo"], seg["x_hi"]], [seg["y_lo"], seg["y_hi"]],
                  "-", color=c, lw=1.6, marker="o", ms=3, mec="none",
                  alpha=0.95)
-    rows = f7["inclusive"]["rows"]
-    axl.plot([r["plab"] for r in rows], [r["mean"] for r in rows],
-             ls=":", color="0.25", lw=1.4)
-    axl.annotate("inclusive\n($p_{\\rm CM}$ uncontrolled)",
-                 (rows[-1]["plab"], rows[-1]["mean"]), xytext=(0, -28),
-                 textcoords="offset points", fontsize=10, color="0.3",
-                 ha="right")
     axl.set_title("vary $|p|_{\\rm lab}$ at fixed $(p_{\\rm CM}, Q^2)$",
                   fontsize=13, color="0.15", loc="left")
     axl.text(0.04, 0.97, "nothing happens — slope per e-fold:\n"
@@ -622,6 +615,23 @@ def fig7(res, outdir):
              r"cells: $Q^2 \in [25, 400]$ GeV$^2$",
              transform=axc.transAxes, fontsize=9.5, ha="right", color="0.45")
     axl.set_ylim(3.2, 8.6)      # headroom for the slope labels
+
+    # inclusive profiles, drawn last so they sit on top of the segments
+    for ax, key in ((axl, "inclusive"), (axc, "inclusive_pcm")):
+        inc = f7.get(key)
+        if not inc:
+            continue
+        rows = inc["rows"]
+        ax.plot([r["x"] for r in rows], [r["mean"] for r in rows],
+                ls="--", color="#9e2a2b", lw=2.4, zorder=10,
+                dash_capstyle="round")
+    axl.text(0.97, 0.03, "inclusive ($p_{\\rm CM}$ uncontrolled)",
+             transform=axl.transAxes, fontsize=10.5, color="#9e2a2b",
+             ha="right", zorder=11)
+    rows = f7["inclusive_pcm"]["rows"]
+    axc.annotate("inclusive", (rows[-1]["x"], rows[-1]["mean"]),
+                 xytext=(2, -20), textcoords="offset points", fontsize=10.5,
+                 color="#9e2a2b", ha="right", zorder=11)
 
     # segment color encodes the cell's p_CM
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
