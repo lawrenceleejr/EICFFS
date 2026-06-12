@@ -393,15 +393,15 @@ def boost_map(samples):
 
 # 2D map of the lab-measured <n90> in the (p_CM, |p|_lab) plane at fixed
 # hard scale.  Pure color-frame dependence appears as vertical banding.
-FIG7_PCM_EDGES = np.geomspace(4.0, 56.0, 9)
-FIG7_PLAB_EDGES = np.geomspace(3.5, 75.0, 11)
+FIG7_PCM_EDGES = np.geomspace(4.0, 56.0, 6)
+FIG7_PLAB_EDGES = np.geomspace(3.5, 75.0, 6)
 FIG7_Q2_NARROW = (25.0, 45.0)        # narrow hard-scale window (DGLAP control)
 
 # Matched-cell contrast: within narrow (p_CM, Q^2) cells, split jets at the
 # median |p|_lab and compare the two halves (and the mirrored test with
 # (|p|_lab, Q^2) cells split in p_CM).  This is a paired comparison at fixed
 # color configuration and avoids the multicollinearity of global fits.
-FIG7_Q2_CELLS = [(25., 45.), (45., 80.), (80., 150.), (150., 400.)]
+FIG7_Q2_CELLS = [(25., 60.), (60., 400.)]
 FIG7_MIN_CELL = 3000
 FIG7_MIN_SEP = 1.3                   # min ratio between half means of split var
 
@@ -450,7 +450,7 @@ def _contrast(d, obs, cell_var, split_var, cell_edges):
                 continue
             sv = d[split_var][m]
             y = d[obs][m]
-            nq = int(np.clip(n_cell // 2500, 3, 9))
+            nq = int(np.clip(n_cell // 4000, 4, 14))
             qedges = np.quantile(sv, np.linspace(0, 1, nq + 1))
             qedges[-1] += 1e-6
             pts = []

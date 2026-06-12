@@ -562,8 +562,12 @@ def fig7(res, outdir, key="fig7", obs_label=r"$\langle n_{90}\rangle$ (lab frame
         return
 
     pcm_e = np.array(f7["pcm_edges"])
+    plab_e = np.array(f7["plab_edges"])
     cmap = plt.get_cmap("viridis")
-    norm = matplotlib.colors.LogNorm(vmin=pcm_e[0], vmax=pcm_e[-1])
+    # shared scale: each curve is colored by its cell's FIXED momentum
+    # (left: p_CM, right: |p|_lab)
+    norm = matplotlib.colors.LogNorm(vmin=min(pcm_e[0], plab_e[0]),
+                                     vmax=max(pcm_e[-1], plab_e[-1]))
 
     fig, (axl, axc) = plt.subplots(1, 2, figsize=(11.5, 5.4), sharey=True,
                                    gridspec_kw={"wspace": 0.08})
@@ -600,9 +604,11 @@ def fig7(res, outdir, key="fig7", obs_label=r"$\langle n_{90}\rangle$ (lab frame
 
     # ── vary p_CM at fixed (|p|_lab, Q^2): the structure shifts ───────────
     for seg in con["vary_pcm"]["segments"]:
-        xs = [p["x"] for p in seg["points"]]
-        c = cmap(norm(np.sqrt(xs[0] * xs[-1])))
-        axc.plot(xs, [p["y"] for p in seg["points"]],
+        # color by the cell's fixed |p|_lab (mirrors the left panel's
+        # fixed p_CM): the full spectrum lands on one common trend
+        c = cmap(norm(np.sqrt(seg["cell"][0] * seg["cell"][1])))
+        axc.plot([p["x"] for p in seg["points"]],
+                 [p["y"] for p in seg["points"]],
                  "-", color=c, lw=1.5, marker="o", ms=2.6, mec="none",
                  alpha=0.95)
     axc.set_title("vary $p_{\\rm CM}$ at fixed $(|p|_{\\rm lab}, Q^2)$",
@@ -640,14 +646,15 @@ def fig7(res, outdir, key="fig7", obs_label=r"$\langle n_{90}\rangle$ (lab frame
                  xytext=(2, -20), textcoords="offset points", fontsize=10.5,
                  color="#9e2a2b", ha="right", zorder=11)
 
-    # segment color encodes the cell's p_CM
+    # curve color encodes the cell's fixed momentum
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     cb = fig.colorbar(sm, ax=[axl, axc], pad=0.015, aspect=32)
-    cb.set_label(r"cell $p_{\rm CM}$ [GeV]")
+    cb.set_label("fixed cell momentum [GeV]\n"
+                 r"(left: $p_{\rm CM}$;  right: $|p|_{\rm lab}$)")
     cb.outline.set_visible(False)
     cb.ax.tick_params(size=0)
-    cb.ax.set_yticks([5, 10, 20, 40])
-    cb.ax.set_yticklabels(["5", "10", "20", "40"])
+    cb.ax.set_yticks([5, 10, 20, 40, 70])
+    cb.ax.set_yticklabels(["5", "10", "20", "40", "70"])
 
     tufte(axl)
     tufte(axc)

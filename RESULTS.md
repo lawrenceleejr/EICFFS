@@ -140,12 +140,12 @@ multicollinearity of global fits:
 
 | Contrast (slope per e-fold) | Pythia 8 (string) | Herwig 7 (cluster) |
 |---|---|---|
-| **⟨n₉₀ˡᵃᵇ⟩** vary \|p\|_lab at fixed (p_CM, Q²) | **+0.04 ± 0.00 (stat) ± 0.28 (cell RMS)** | **+0.06 ± 0.01 ± 0.42** |
-| **⟨n₉₀ˡᵃᵇ⟩** vary p_CM at fixed (\|p\|_lab, Q²) | **+1.36 ± 0.00 ± 0.28** | **+1.42 ± 0.01 ± 0.34** |
-| **⟨n_SD⟩** vary \|p\|_lab at fixed (p_CM, Q²) | **−0.02 ± 0.00 ± 0.17** | **−0.02 ± 0.01 ± 0.19** |
-| **⟨n_SD⟩** vary p_CM at fixed (\|p\|_lab, Q²) | **+0.53 ± 0.00 ± 0.13** | **+0.52 ± 0.00 ± 0.13** |
+| **⟨n₉₀ˡᵃᵇ⟩** vary \|p\|_lab at fixed (p_CM, Q²) | **+0.06 ± 0.00 (stat) ± 0.21 (cell RMS)** | **+0.07 ± 0.01 ± 0.34** |
+| **⟨n₉₀ˡᵃᵇ⟩** vary p_CM at fixed (\|p\|_lab, Q²) | **+1.39 ± 0.00 ± 0.26** | **+1.47 ± 0.01 ± 0.33** |
+| **⟨n_SD⟩** vary \|p\|_lab at fixed (p_CM, Q²) | **−0.02 ± 0.00 ± 0.13** | **−0.01 ± 0.01 ± 0.16** |
+| **⟨n_SD⟩** vary p_CM at fixed (\|p\|_lab, Q²) | **+0.53 ± 0.00 ± 0.11** | **+0.52 ± 0.00 ± 0.11** |
 
-(Each cell is profiled in 3–9 quantile bins of the varied quantity and
+(Each cell is profiled in 4–14 quantile bins of the varied quantity and
 the per-cell slope fit over those points.)  **Varying a jet's lab momentum
 at fixed color-frame configuration does essentially nothing — ≤3% of the
 color-frame slope in both hadronization paradigms — while varying its
