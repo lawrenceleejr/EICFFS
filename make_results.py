@@ -409,12 +409,19 @@ FIG7_MIN_SEP = 1.3                   # min ratio between half means of split var
 def _combined_baseline(samples, variation="baseline"):
     """Concatenate truth-level jets of one variation across configs."""
     cols = {}
+    fields = ("pcm", "plab", "n90lab", "n90cm", "nsdlab", "nsdcm", "Q2")
     for (config, var, level), (d, meta) in samples.items():
         if var != variation or level != "truth":
             continue
-        for f in ("pcm", "plab", "n90lab", "n90cm", "Q2"):
-            cols.setdefault(f, []).append(d[f])
-    return {f: np.concatenate(v) for f, v in cols.items()} if cols else None
+        for f in fields:
+            if f in d:
+                cols.setdefault(f, []).append(d[f])
+    out = {f: np.concatenate(v) for f, v in cols.items()} if cols else None
+    if out is not None:
+        # drop fields not present in every part
+        n = len(out["pcm"])
+        out = {f: v for f, v in out.items() if len(v) == n}
+    return out
 
 
 def _wls_logslope(x, y, ye):
@@ -479,7 +486,7 @@ def _aggregate_slopes(segs):
             "n_cells": len(segs)}
 
 
-def dependence_decomposition(samples):
+def dependence_decomposition(samples, obs_lab="n90lab", obs_cm="n90cm"):
     """
     Direct demonstration that jet structure depends on the color-frame
     momentum and *not* the lab-frame momentum:
@@ -513,7 +520,9 @@ def dependence_decomposition(samples):
         dd = {k: v[sel] for k, v in d.items()}
 
         # global trilinear fit (both observables)
-        for obs in ("n90lab", "n90cm"):
+        for obs in (obs_lab, obs_cm):
+            if obs not in dd:
+                continue
             A = np.vstack([np.ones(len(dd["pcm"])), np.log(dd["pcm"]),
                            np.log(dd["plab"]), np.log(dd["Q2"])]).T
             y = dd[obs]
@@ -530,8 +539,10 @@ def dependence_decomposition(samples):
             }
 
         # matched-cell contrasts (primary observable)
-        segs_l = _contrast(dd, "n90lab", "pcm", "plab", FIG7_PCM_EDGES)
-        segs_c = _contrast(dd, "n90lab", "plab", "pcm", FIG7_PLAB_EDGES)
+        if obs_lab not in dd:
+            continue
+        segs_l = _contrast(dd, obs_lab, "pcm", "plab", FIG7_PCM_EDGES)
+        segs_c = _contrast(dd, obs_lab, "plab", "pcm", FIG7_PLAB_EDGES)
         out["contrasts"][variation] = {
             "vary_plab": {"segments": segs_l,
                           "aggregate": _aggregate_slopes(segs_l)},
@@ -552,7 +563,7 @@ def dependence_decomposition(samples):
             m = mc & (d["plab"] >= llo) & (d["plab"] < lhi)
             n = int(m.sum())
             if n >= MIN_JETS_PER_BIN:
-                v = d["n90lab"][m]
+                v = d[obs_lab][m]
                 grid.append({"i": i, "j": j, "mean": float(v.mean()),
                              "sem": float(v.std() / np.sqrt(n)), "n": n})
     out["map"] = grid
@@ -563,7 +574,7 @@ def dependence_decomposition(samples):
             m = mq & (d[var] >= lo) & (d[var] < hi)
             n = int(m.sum())
             if n >= MIN_JETS_PER_BIN:
-                v = d["n90lab"][m]
+                v = d[obs_lab][m]
                 rows.append({"x": float(np.exp(np.mean(np.log(d[var][m])))),
                              "mean": float(v.mean()),
                              "sem": float(v.std() / np.sqrt(n)), "n": n})
@@ -627,6 +638,11 @@ def main():
 
     print("Fig.7 frame-dependence decomposition …")
     decomp = dependence_decomposition(samples)
+    decomp_sd = None
+    if any("nsdlab" in d for (c, v, l), (d, m) in samples.items()
+           if v == "baseline" and l == "truth"):
+        print("Fig.7-SD (soft-drop multiplicity) …")
+        decomp_sd = dependence_decomposition(samples, "nsdlab", "nsdcm")
 
     results = {
         "binnings": {
@@ -659,6 +675,7 @@ def main():
         "fig4": proj,
         "fig1": bmap,
         "fig7": decomp,
+        "fig7_sd": decomp_sd,
     }
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
@@ -706,6 +723,14 @@ def main():
               f"d_Q2 = {fit['dlnQ2']:+.3f}")
     print(f"    inclusive vs p_lab (Q2 narrow): slope = "
           f"{decomp['inclusive']['slope']:+.3f} +- {decomp['inclusive']['slope_err']:.3f}")
+    if decomp_sd:
+        for var, con in decomp_sd["contrasts"].items():
+            for key, label in (("vary_plab", "n_SD vary p_lab"),
+                               ("vary_pcm", "n_SD vary p_CM")):
+                ag = con[key]["aggregate"]
+                if ag:
+                    print(f"    {var:8s} {label}: {ag['mean']:+.3f} "
+                          f"+- {ag['stat_err']:.3f} +- {ag['cell_rms']:.3f}")
     for c, si in proj.get("luminosity_inputs", {}).get("per_config", {}).items():
         print(f"  {c}: sigma = {si['sigma_fb']/1e6:.1f} nb, "
               f"{si['jets_per_fb']:.3g} jets/fb^-1, "

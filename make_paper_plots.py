@@ -13,6 +13,8 @@ Reads results/results.json (from make_results.py) and produces:
                          the jet-individualism bias
   fig7_decomposition.pdf frame-dependence decomposition: matched-cell
                          contrasts prove structure = f(p_CM), not f(p_lab)
+  fig7_decomposition_sd.pdf   same with Soft Drop multiplicity
+                         (z_cut = 0.1, beta = 0) instead of n90
 
 Typography: Tufte-style (high data-ink ratio, despined axes, frameless
 legends, direct labels); text in EB Garamond, math in STIX serif.
@@ -542,19 +544,21 @@ def fig6(res, outdir):
 # Fig. 7 — frame-dependence decomposition: p_CM, not |p|_lab
 # ---------------------------------------------------------------------------
 
-def fig7(res, outdir):
+def fig7(res, outdir, key="fig7", obs_label=r"$\langle n_{90}\rangle$ (lab frame)",
+         fname="fig7_decomposition.pdf"):
     """
-    Matched-cell contrast: within narrow (p_CM, Q^2) cells, jets split at
-    the median |p|_lab (flat segments: varying the lab momentum at fixed
-    color configuration does nothing), mirrored by (|p|_lab, Q^2) cells
-    split in p_CM (steep segments).  The inclusive |p|_lab trend (dotted)
-    even has the opposite sign -- Simpson's paradox: lab momentum has no
-    intrinsic explanatory power.  Each panel quotes the aggregate slope
-    for both hadronization models.
+    Matched-cell contrast: within narrow (p_CM, Q^2) cells, the observable
+    is profiled in quantile bins of |p|_lab (flat curves: varying the lab
+    momentum at fixed color configuration does nothing), mirrored by
+    (|p|_lab, Q^2) cells profiled in p_CM (steep curves).  The inclusive
+    |p|_lab trend (dashed) even has the opposite sign -- Simpson's
+    paradox: lab momentum has no intrinsic explanatory power.  Each panel
+    quotes the aggregate slope for both hadronization models.  Used for
+    n90 (primary) and Soft Drop multiplicity (cross-check version).
     """
-    f7 = res.get("fig7")
+    f7 = res.get(key)
     if not f7:
-        print("  (no fig7 data; skipping)")
+        print(f"  (no {key} data; skipping)")
         return
 
     pcm_e = np.array(f7["pcm_edges"])
@@ -589,10 +593,10 @@ def fig7(res, outdir):
              transform=axl.transAxes, fontsize=11.5, va="top", color="0.2")
     axl.set_xscale("log")
     axl.set_xlabel(r"$|p|_{\rm lab}$ [GeV]")
-    axl.set_ylabel(r"$\langle n_{90}\rangle$ (lab frame)")
     axl.set_xticks([5, 10, 20, 40])
     axl.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     axl.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
+    axl.set_ylabel(obs_label)
 
     # ── vary p_CM at fixed (|p|_lab, Q^2): the structure shifts ───────────
     for seg in con["vary_pcm"]["segments"]:
@@ -616,7 +620,8 @@ def fig7(res, outdir):
     axc.text(0.96, 0.04, "EIC NC-DIS, Pythia 8 segments\n"
              r"cells: $Q^2 \in [25, 400]$ GeV$^2$",
              transform=axc.transAxes, fontsize=9.5, ha="right", color="0.45")
-    axl.set_ylim(3.2, 8.6)      # headroom for the slope labels
+    ymin, ymax = axl.get_ylim()
+    axl.set_ylim(ymin, ymax + 0.32 * (ymax - ymin))   # label headroom
 
     # inclusive profiles, drawn last so they sit on top of the segments
     for ax, key in ((axl, "inclusive"), (axc, "inclusive_pcm")):
@@ -646,7 +651,7 @@ def fig7(res, outdir):
 
     tufte(axl)
     tufte(axc)
-    _saveplot(fig, outdir, "fig7_decomposition.pdf")
+    _saveplot(fig, outdir, fname)
 
 
 # ---------------------------------------------------------------------------
@@ -666,6 +671,9 @@ def main():
     fig5(res, args.outdir)
     fig6(res, args.outdir)
     fig7(res, args.outdir)
+    fig7(res, args.outdir, key="fig7_sd",
+         obs_label=r"$\langle n_{\rm SD}\rangle$ (lab frame)",
+         fname="fig7_decomposition_sd.pdf")
     print("Done.")
 
 

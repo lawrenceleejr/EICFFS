@@ -106,6 +106,53 @@ def compute_n_x(pmags, thresholds):
 
 
 # ---------------------------------------------------------------------------
+# Soft Drop multiplicity (Frye, Larkoski, Thaler, Yan, arXiv:1704.06266)
+# ---------------------------------------------------------------------------
+
+SD_ZCUT = 0.1
+SD_BETA = 0.0
+SD_R0 = 1.0
+
+
+def soft_drop_multiplicity(vecs, fj, zcut=SD_ZCUT, beta=SD_BETA, R0=SD_R0):
+    """
+    Count Soft Drop branchings along the primary declustering sequence of
+    an e+e--style Cambridge/Aachen tree of the given constituent
+    4-vectors:  z = min(E1,E2)/(E1+E2) > zcut * (theta/R0)^beta, with
+    theta the 3D opening angle.  Computed in whichever frame `vecs` live.
+    """
+    if len(vecs) < 2:
+        return 0
+    pjs = [fj.PseudoJet(float(v[0]), float(v[1]), float(v[2]), float(v[3]))
+           for v in vecs]
+    # angular-ordered (C/A-like) e+e- clustering; R = pi captures everything
+    jdef = fj.JetDefinition(fj.ee_genkt_algorithm, np.pi, 0.0)
+    cs = fj.ClusterSequence(pjs, jdef)
+    jets = sorted(cs.inclusive_jets(0.0), key=lambda j: -j.e())
+    if not jets:
+        return 0
+    n_sd = 0
+    j = jets[0]
+    p1, p2 = fj.PseudoJet(), fj.PseudoJet()
+    while j.has_parents(p1, p2):
+        e1, e2 = p1.e(), p2.e()
+        if e1 + e2 <= 0:
+            break
+        z = min(e1, e2) / (e1 + e2)
+        v1 = np.array([p1.px(), p1.py(), p1.pz()])
+        v2 = np.array([p2.px(), p2.py(), p2.pz()])
+        n1, n2 = np.linalg.norm(v1), np.linalg.norm(v2)
+        if n1 <= 0 or n2 <= 0:
+            break
+        theta = np.arccos(np.clip(v1 @ v2 / (n1 * n2), -1.0, 1.0))
+        if z > zcut * (theta / R0) ** beta:
+            n_sd += 1
+        j = p1 if e1 >= e2 else p2
+        p1, p2 = fj.PseudoJet(), fj.PseudoJet()
+    return n_sd
+
+
+# ---------------------------------------------------------------------------
 # Electron-method DIS kinematics
 # ---------------------------------------------------------------------------
 
@@ -168,6 +215,7 @@ def analyze(args):
         "Q2", "W", "x", "y",
         "plab", "ptlab", "etalab", "pcm", "ecm",
         "n90lab", "n75lab", "n95lab", "n90cm", "n75cm", "n95cm",
+        "nsdlab", "nsdcm",
         "nconst", "nch", "ptd", "gboost",
     ]}
     n_sel_event = 0
@@ -243,13 +291,15 @@ def analyze(args):
         pm_cm = np.sqrt((c_cm[:, :3]**2).sum(axis=1))
         n75l, n90l, n95l = compute_n_x(pm_lab, (0.75, 0.90, 0.95))
         n75c, n90c, n95c = compute_n_x(pm_cm, (0.75, 0.90, 0.95))
+        nsd_lab = soft_drop_multiplicity(c_lab, fj)
+        nsd_cm = soft_drop_multiplicity(c_cm, fj)
         pt_lab = np.sqrt((c_lab[:, :2]**2).sum(axis=1))
         sum_pt = pt_lab.sum()
         ptd = float(np.sqrt((pt_lab**2).sum()) / sum_pt) if sum_pt > 0 else np.nan
 
         gboost = (P_in + q)[3] / W      # Lorentz gamma of the gamma*p frame
         row = (Q2, W, x, y, plab, ptlab, etalab, pcm, jet.e(),
-               n90l, n75l, n95l, n90c, n75c, n95c,
+               n90l, n75l, n95l, n90c, n75c, n95c, nsd_lab, nsd_cm,
                len(jet_idx), int(np.sum(np.abs(ch[jet_idx]) > 0)), ptd, gboost)
         for k, val in zip(cols, row):
             cols[k].append(val)
