@@ -133,11 +133,10 @@ population level; Fig. 7 isolates it causally with a **matched-cell paired
 contrast** that avoids both the p_CM ⊗ |p|_lab correlation and the
 multicollinearity of global fits:
 
-* within narrow **(p_CM, Q²)** cells, jets are split at the median |p|_lab
-  and the two halves compared — *varying the lab momentum at fixed color
-  configuration*;
-* mirrored with **(|p|_lab, Q²)** cells split in p_CM — *varying the color
-  momentum at fixed lab configuration*.
+* within narrow **(p_CM, Q²)** cells, jets are profiled in quantile bins
+  of |p|_lab — *varying the lab momentum at fixed color configuration*;
+* mirrored with **(|p|_lab, Q²)** cells profiled in p_CM — *varying the
+  color momentum at fixed lab configuration*.
 
 | Contrast (⟨n₉₀ˡᵃᵇ⟩ slope per e-fold) | Pythia 8 (string) | Herwig 7 (cluster) |
 |---|---|---|
