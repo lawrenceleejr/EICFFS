@@ -136,39 +136,53 @@ multicollinearity of global fits:
 * within narrow **(p_CM, Q²)** cells, jets are profiled in quantile bins
   of |p|_lab — *varying the lab momentum at fixed color configuration*;
 * mirrored with **(|p|_lab, Q²)** cells profiled in p_CM — *varying the
-  color momentum at fixed lab configuration*.
+  color momentum at fixed lab configuration*;
+* within a **boost-geometry fiducial window 1/3 < |p|_lab/p_CM < 3**:
+  outside it (extreme anti-aligned de-boost at high p_CM, far over-boost
+  tails at low p_CM) the lab observable acquires large, calculable
+  frame-distortion threshold effects — measured at up to
+  Δ(n₉₀ˡᵃᵇ − n₉₀ᶜᵐ) ≈ +1.1 at |p|_lab/p_CM ≈ 0.13 — which are deliberately
+  excluded from the headline numbers.
 
 | Contrast (slope per e-fold) | Pythia 8 (string) | Herwig 7 (cluster) |
 |---|---|---|
-| **⟨n₉₀ˡᵃᵇ⟩** vary \|p\|_lab at fixed (p_CM, Q²) | **+0.06 ± 0.00 (stat) ± 0.21 (cell RMS)** | **+0.07 ± 0.01 ± 0.34** |
-| **⟨n₉₀ˡᵃᵇ⟩** vary p_CM at fixed (\|p\|_lab, Q²) | **+1.39 ± 0.00 ± 0.26** | **+1.47 ± 0.01 ± 0.33** |
-| **⟨n_SD⟩** vary \|p\|_lab at fixed (p_CM, Q²) | **−0.02 ± 0.00 ± 0.13** | **−0.01 ± 0.01 ± 0.16** |
-| **⟨n_SD⟩** vary p_CM at fixed (\|p\|_lab, Q²) | **+0.53 ± 0.00 ± 0.11** | **+0.52 ± 0.00 ± 0.11** |
+| **⟨n₉₀ˡᵃᵇ⟩** vary \|p\|_lab at fixed (p_CM, Q²) | **+0.15 ± 0.00 (stat) ± 0.34 (cell RMS)** | **+0.16 ± 0.01 ± 0.48** |
+| **⟨n₉₀ˡᵃᵇ⟩** vary p_CM at fixed (\|p\|_lab, Q²) | **+1.57 ± 0.00 ± 0.22** | **+1.72 ± 0.01 ± 0.36** |
+| **⟨n_SD⟩** vary \|p\|_lab at fixed (p_CM, Q²) | **+0.04 ± 0.00 ± 0.14** | **+0.04 ± 0.01 ± 0.19** |
+| **⟨n_SD⟩** vary p_CM at fixed (\|p\|_lab, Q²) | **+0.67 ± 0.00 ± 0.05** | **+0.67 ± 0.01 ± 0.10** |
 
 (Each cell is profiled in 4–14 quantile bins of the varied quantity and
-the per-cell slope fit over those points.)  **Varying a jet's lab momentum
-at fixed color-frame configuration does essentially nothing — ≤3% of the
-color-frame slope in both hadronization paradigms — while varying its
-color-frame momentum at fixed lab kinematics moves the structure by
-+1.4 units per e-fold.**  The cell-to-cell RMS (±0.3)
-reflects selection geometry of the fat (R = 1.0) hemisphere jets (the same
-second-order non-factorizability as Fig. 3's 6.7% residual), not a
-coherent lab dependence: the per-cell tilts average to zero.
+the per-cell slope fit over those points.)  **Within the fiducial window,
+varying a jet's lab momentum at fixed color-frame configuration produces
+at most a weak residual — ≲10% of the color-frame slope for n₉₀, and
+consistent with zero within the cell spread for the groomed n_SD — while
+varying its color-frame momentum at fixed lab kinematics moves the
+structure by +1.6 (n₉₀) or +0.67 (n_SD) per e-fold, identically in both
+hadronization paradigms.**  The n₉₀ residual and its cell RMS reflect the
+soft periphery geometry of the fat (R = 1.0) hemisphere jets (the same
+second-order non-factorizability as Fig. 3's residual); grooming removes
+it, which is why n_SD is the cleaner null.
 
 Two corroborating observations:
 
-1. **Simpson's paradox:** the *inclusive* ⟨n₉₀ˡᵃᵇ⟩ vs |p|_lab trend at
-   fixed Q² has slope **−0.24** — opposite in sign to nothing, i.e. the
-   apparent lab-momentum dependence in an uncontrolled sample is entirely
-   an artifact of the p_CM correlation (at fixed W the current jet is
-   anti-aligned with the boost, so higher |p|_lab actually selects *lower*
-   W).  Lab momentum has no intrinsic explanatory power — conditioning on
-   p_CM does not merely flatten the trend, it reverses its sign.
+1. **The inclusive trend is frame-geometry, not physics:** over the full
+   kinematic range the *inclusive* ⟨n₉₀ˡᵃᵇ⟩ vs |p|_lab trend at fixed Q²
+   has slope **−0.24** — opposite in sign to the conditional residual —
+   because the de-boosted high-p_CM corner dominates the high-|p|_lab...
+   low-|p|_lab mapping (at fixed W the current jet is anti-aligned with
+   the boost).  Restricting to the fiducial window collapses the
+   inclusive slope onto the weak conditional one (+0.15): all of the
+   dramatic lab-momentum behaviour lives in the boost-geometry corners,
+   none of it in the fragmentation.  (A cautionary corollary: the
+   un-windowed contrasts previously quoted near-zero lab slopes partly
+   through cancellation between the corners; the windowed numbers above
+   are the robust ones.)
 2. **Global cross-check:** the trilinear fit
-   ⟨n₉₀ˡᵃᵇ⟩ = a + b ln p_CM + c ln |p|_lab + d ln Q² over 2.3M jets gives
-   b = +1.34, d = +0.41 (DGLAP), and **c = −0.02 ± 0.003**: with the color
-   frame and the hard scale in the model, the lab momentum coefficient is
-   1.5% of the color-frame coefficient.
+   ⟨n₉₀ˡᵃᵇ⟩ = a + b ln p_CM + c ln |p|_lab + d ln Q² over the full range
+   gives b = +1.34, d = +0.41 (DGLAP), and **c = −0.02 ± 0.003**; in the
+   fiducial window the matched-cell estimate replaces it as the headline
+   since it is robust against the corner cancellations that a global
+   linear model averages over.
 
 The same decomposition with the **Soft Drop multiplicity** (an
 IRC-groomed counting observable with entirely different systematics than

@@ -592,7 +592,7 @@ def fig7(res, outdir, key="fig7", obs_label=r"$\langle n_{90}\rangle$ (lab frame
                  alpha=0.95)
     axl.set_title("vary $|p|_{\\rm lab}$ at fixed $(p_{\\rm CM}, Q^2)$",
                   fontsize=13, color="0.15", loc="left")
-    axl.text(0.04, 0.97, "nothing happens — slope per e-fold:\n"
+    axl.text(0.04, 0.97, "weak residual — slope per e-fold:\n"
              + slope_label("vary_plab"),
              transform=axl.transAxes, fontsize=11.5, va="top", color="0.2")
     axl.set_xscale("log")
@@ -623,8 +623,11 @@ def fig7(res, outdir, key="fig7", obs_label=r"$\langle n_{90}\rangle$ (lab frame
     axc.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
     plt.setp(axc.get_yticklabels(), visible=False)
 
+    win = f7.get("boost_ratio_window")
+    win_txt = (f"\n$%.2g < |p|_{{\\rm lab}}/p_{{\\rm CM}} < %.2g$" % tuple(win)
+               if win else "")
     axc.text(0.96, 0.04, "EIC NC-DIS, Pythia 8 segments\n"
-             r"cells: $Q^2 \in [25, 400]$ GeV$^2$",
+             r"cells: $Q^2 \in [25, 400]$ GeV$^2$" + win_txt,
              transform=axc.transAxes, fontsize=9.5, ha="right", color="0.45")
     ymin, ymax = axl.get_ylim()
     axl.set_ylim(ymin, ymax + 0.32 * (ymax - ymin))   # label headroom

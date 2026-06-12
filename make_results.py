@@ -402,6 +402,11 @@ FIG7_Q2_NARROW = (25.0, 45.0)        # narrow hard-scale window (DGLAP control)
 # (|p|_lab, Q^2) cells split in p_CM).  This is a paired comparison at fixed
 # color configuration and avoids the multicollinearity of global fits.
 FIG7_Q2_CELLS = [(25., 60.), (60., 400.)]
+# Boost-geometry fiducial window: keep jets whose lab momentum is within a
+# factor 3 of their color-frame momentum.  Outside it (extreme anti-aligned
+# de-boost at high p_CM, extreme over-boost tails at low p_CM) the lab
+# observable acquires large frame-distortion/threshold effects.
+FIG7_BOOST_RATIO = (1.0 / 3.0, 3.0)
 FIG7_MIN_CELL = 3000
 FIG7_MIN_SEP = 1.3                   # min ratio between half means of split var
 
@@ -506,6 +511,7 @@ def dependence_decomposition(samples, obs_lab="n90lab", obs_cm="n90cm"):
            "plab_edges": FIG7_PLAB_EDGES.tolist(),
            "q2_narrow": FIG7_Q2_NARROW,
            "q2_cells": FIG7_Q2_CELLS,
+           "boost_ratio_window": FIG7_BOOST_RATIO,
            "trilinear": {}, "contrasts": {}}
 
     sel_window = None
@@ -513,9 +519,11 @@ def dependence_decomposition(samples, obs_lab="n90lab", obs_cm="n90cm"):
         d = _combined_baseline(samples, variation=variation)
         if d is None:
             continue
+        ratio = d["plab"] / d["pcm"]
         sel = ((d["pcm"] >= FIG7_PCM_EDGES[0]) & (d["pcm"] < FIG7_PCM_EDGES[-1])
                & (d["plab"] >= FIG7_PLAB_EDGES[0])
                & (d["plab"] < FIG7_PLAB_EDGES[-1])
+               & (ratio >= FIG7_BOOST_RATIO[0]) & (ratio < FIG7_BOOST_RATIO[1])
                & (d["Q2"] >= 25.0) & (d["Q2"] < 400.0))
         dd = {k: v[sel] for k, v in d.items()}
 
@@ -552,7 +560,8 @@ def dependence_decomposition(samples, obs_lab="n90lab", obs_cm="n90cm"):
         if variation == "baseline":
             sel_window = dd
 
-    # 2D map and inclusive profile in the narrow Q^2 window (baseline)
+    # 2D map and inclusive profile in the narrow Q^2 window (baseline);
+    # sel_window already carries the boost-ratio fiducial cut
     d = sel_window
     mq = (d["Q2"] >= FIG7_Q2_NARROW[0]) & (d["Q2"] < FIG7_Q2_NARROW[1])
     grid = []
