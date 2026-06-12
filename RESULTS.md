@@ -16,9 +16,9 @@ repository's pipeline (`run.sh`).  Final figures are tracked in
 | Process | NC DIS, MPI off (on for contamination check), no QED FSR off the lepton (both generators), monochromatic beams |
 | Beam configurations | 5×41, 10×100, 18×275 GeV (√s = 28.6, 63.2, 140.7 GeV) |
 | Phase space | Q² ∈ [25, 1000] GeV², 0.05 < y < 0.95 |
-| Statistics | Pythia: 1.5M events/config baseline + 500k × 2 string variations/config + 300k MPI-on (9.3M).  Herwig: 300k/config (0.9M).  **10.2M events total** |
+| Statistics | Pythia: 5.5M events/config baseline (4 parts) + 500k × 2 string variations/config + 300k MPI-on (19.8M).  Herwig: 300k/config (0.9M).  **20.7M events total** |
 | Jet definition | e⁺e⁻ generalized-kT (p = −1), R = 1.0, clustered in the **γ\*p CM frame**; leading-energy jet in the Breit-frame **current hemisphere**; jet p_CM > 2 GeV, \|η_lab\| < 3.5 |
-| Observables | n₉₀ (primary; also n₇₅/n₉₅, N_ch, pTD) from constituent \|p\| **in the frame of the binning variable** |
+| Observables | n₉₀ (primary; also n₇₅/n₉₅, N_ch, pTD) from constituent \|p\| **in the frame of the binning variable**; Soft Drop multiplicity n_SD (z_cut = 0.1, β = 0, e⁺e⁻ C/A primary declustering), also frame-resolved |
 | Reco level | ePIC-like parametric smearing: track-only jets, 95% efficiency, η-dependent resolution; electron-method kinematics from the smeared electron (1.6M reco jets) |
 
 ### Generator cross sections (Q² > 25 GeV²)
@@ -138,12 +138,14 @@ multicollinearity of global fits:
 * mirrored with **(|p|_lab, Q²)** cells profiled in p_CM — *varying the
   color momentum at fixed lab configuration*.
 
-| Contrast (⟨n₉₀ˡᵃᵇ⟩ slope per e-fold) | Pythia 8 (string) | Herwig 7 (cluster) |
+| Contrast (slope per e-fold) | Pythia 8 (string) | Herwig 7 (cluster) |
 |---|---|---|
-| vary \|p\|_lab at fixed (p_CM, Q²) | **+0.04 ± 0.00 (stat) ± 0.28 (cell RMS)** | **+0.05 ± 0.01 ± 0.42** |
-| vary p_CM at fixed (\|p\|_lab, Q²) | **+1.36 ± 0.00 ± 0.28** | **+1.42 ± 0.01 ± 0.34** |
+| **⟨n₉₀ˡᵃᵇ⟩** vary \|p\|_lab at fixed (p_CM, Q²) | **+0.04 ± 0.00 (stat) ± 0.28 (cell RMS)** | **+0.06 ± 0.01 ± 0.42** |
+| **⟨n₉₀ˡᵃᵇ⟩** vary p_CM at fixed (\|p\|_lab, Q²) | **+1.36 ± 0.00 ± 0.28** | **+1.42 ± 0.01 ± 0.34** |
+| **⟨n_SD⟩** vary \|p\|_lab at fixed (p_CM, Q²) | **−0.02 ± 0.00 ± 0.17** | **−0.02 ± 0.01 ± 0.19** |
+| **⟨n_SD⟩** vary p_CM at fixed (\|p\|_lab, Q²) | **+0.53 ± 0.00 ± 0.13** | **+0.52 ± 0.00 ± 0.13** |
 
-(Each cell is profiled in 3–6 quantile bins of the varied quantity and
+(Each cell is profiled in 3–9 quantile bins of the varied quantity and
 the per-cell slope fit over those points.)  **Varying a jet's lab momentum
 at fixed color-frame configuration does essentially nothing — ≤3% of the
 color-frame slope in both hadronization paradigms — while varying its
@@ -168,7 +170,14 @@ Two corroborating observations:
    frame and the hard scale in the model, the lab momentum coefficient is
    1.5% of the color-frame coefficient.
 
-Fig. 7 shows the two segment families side by side — flat (left) versus
+The same decomposition with the **Soft Drop multiplicity** (an
+IRC-groomed counting observable with entirely different systematics than
+n₉₀) gives the identical (zero, large) pattern — and the two
+hadronization models agree on the n_SD color-frame slope to 2%
+(`fig7_decomposition_sd.pdf`).  The frame dependence is a property of the
+radiation pattern itself, not of one observable's definition.
+
+Fig. 7 shows the two curve families side by side — flat (left) versus
 steep (right), with both models' slopes quoted per panel; the underlying
 (p_CM, |p|_lab) landscape grid is kept in `results.json` ("fig7.map") and
 exhibits vertical banding — iso-structure lines are lines of constant
