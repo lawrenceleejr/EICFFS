@@ -73,9 +73,21 @@ def load_samples(datadir):
         key = (meta["config"], meta["variation"] + ("_mpi" if meta.get("mpi") else ""),
                meta["level"])
         arr = ak.from_parquet(path)
-        samples[key] = ({f: np.asarray(arr[f], dtype=float) for f in arr.fields},
-                        meta)
-        print(f"  loaded {key}: {len(arr):,} jets")
+        cols = {f: np.asarray(arr[f], dtype=float) for f in arr.fields}
+        if key in samples:
+            # merge multi-part samples (same config/variation/level)
+            d0, m0 = samples[key]
+            for f in d0:
+                d0[f] = np.concatenate([d0[f], cols[f]])
+            for k in ("n_events", "n_tried", "n_jets", "n_events_input",
+                      "n_events_selected"):
+                if k in m0 and k in meta:
+                    m0[k] = m0[k] + meta[k]
+            print(f"  merged {key}: +{len(arr):,} jets "
+                  f"-> {len(d0['plab']):,}")
+        else:
+            samples[key] = (cols, meta)
+            print(f"  loaded {key}: {len(arr):,} jets")
     return samples
 
 
@@ -431,7 +443,7 @@ def _contrast(d, obs, cell_var, split_var, cell_edges):
                 continue
             sv = d[split_var][m]
             y = d[obs][m]
-            nq = int(np.clip(n_cell // 2000, 3, 6))
+            nq = int(np.clip(n_cell // 2500, 3, 9))
             qedges = np.quantile(sv, np.linspace(0, 1, nq + 1))
             qedges[-1] += 1e-6
             pts = []
