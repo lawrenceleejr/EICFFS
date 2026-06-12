@@ -190,6 +190,50 @@ reconstructed event-by-event, which no LHC measurement can.
 
 ---
 
+## Relation to prior literature
+
+The **inclusive-hadron ancestor** of this measurement is well established
+from the fixed-target and HERA era, where current-fragmentation studies
+were deliberately performed in the Breit or hadronic-CM frames:
+
+* **Current-region multiplicity vs Q (Breit frame):** ZEUS measured the
+  charged multiplicity in the current hemisphere of the Breit frame and
+  showed it rises as ln Q and agrees with **one half of e⁺e⁻ annihilation
+  at √s = Q** [hep-ex/9501012; hep-ex/9903056 (current and target
+  regions); 0810.3514], including scaled-momentum/MLLA spectra
+  [hep-ex/9710011; hep-ex/9901041]; review in hep-ex/0601013.
+* **Multiplicity vs W (γ\*p frame):** H1 [Z. Phys. C72 (1996) 573], EMC,
+  and E665 [Z. Phys. C61 (1994) 179] measured ⟨n_ch⟩ and KNO
+  distributions vs W in the hadronic CM and found agreement with e⁺e⁻ at
+  √s = W — the inclusive-hadron version of the W/2 string anchor of
+  Fig. 1.
+
+These results are prior experimental evidence that fragmentation is
+governed by the color-frame scale.  Critically, however, they were all
+**performed in the color/Breit frame and framed as confirmations of
+e⁺e⁻/DIS universality**; the inverse question — what this implies for
+jets at *fixed laboratory kinematics*, i.e. the breakdown of the
+jet-individualism assumption — was never posed.  That framing originates
+with arXiv:2308.10951, and no published study has yet:
+
+1. examined **jet-level substructure** (rather than inclusive hadrons) in
+   this scaling context;
+2. performed the **fixed-lab-kinematics decomposition** (Figs. 2, 7) or
+   the matched-cell frame contrast;
+3. projected the measurement for the **EIC** with event-by-event frame
+   reconstruction;
+4. quantified the **LHC transfer** (Fig. 6).
+
+Existing EIC jet-substructure literature — angularities in
+photoproduction [1910.11460], the Yellow Report jet program
+[2103.05419], the Snowmass EIC white paper [2203.13199], and the
+Breit-frame-native Centauro jet algorithm [2006.10751] — *assumes and
+exploits* the Breit/CM frame as the natural setting to test factorization
+predictions; none tests the frame dependence itself or its lab-frame
+consequences.
+
+---
+
 ## Implication for the LHC: quantifying the jet-individualism bias (Fig. 6)
 
 Essentially all LHC jet methodology rests on **jet individualism**: the
