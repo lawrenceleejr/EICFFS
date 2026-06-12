@@ -417,37 +417,40 @@ def _wls_logslope(x, y, ye):
 
 def _contrast(d, obs, cell_var, split_var, cell_edges):
     """
-    Paired contrast: in each (cell_var bin x Q^2 bin) cell, split jets at
-    the median of split_var and return one segment per cell:
-    (x_lo, y_lo, e_lo, x_hi, y_hi, e_hi, slope, slope_err, cell meta).
+    Paired contrast: in each (cell_var bin x Q^2 bin) cell, profile the
+    observable in quantile bins of split_var (3-6 points depending on the
+    cell population) and fit the per-cell slope vs ln(split_var).
     """
     segs = []
     for q2lo, q2hi in FIG7_Q2_CELLS:
         mq = (d["Q2"] >= q2lo) & (d["Q2"] < q2hi)
         for clo, chi in zip(cell_edges[:-1], cell_edges[1:]):
             m = mq & (d[cell_var] >= clo) & (d[cell_var] < chi)
-            if m.sum() < FIG7_MIN_CELL:
+            n_cell = int(m.sum())
+            if n_cell < FIG7_MIN_CELL:
                 continue
             sv = d[split_var][m]
             y = d[obs][m]
-            med = np.median(sv)
-            lo, hi = sv < med, sv >= med
-            x_lo = float(np.exp(np.mean(np.log(sv[lo]))))
-            x_hi = float(np.exp(np.mean(np.log(sv[hi]))))
-            if x_hi / x_lo < FIG7_MIN_SEP:
+            nq = int(np.clip(n_cell // 2000, 3, 6))
+            qedges = np.quantile(sv, np.linspace(0, 1, nq + 1))
+            qedges[-1] += 1e-6
+            pts = []
+            for qlo, qhi in zip(qedges[:-1], qedges[1:]):
+                mm = (sv >= qlo) & (sv < qhi)
+                if mm.sum() < 100:
+                    continue
+                pts.append({
+                    "x": float(np.exp(np.mean(np.log(sv[mm])))),
+                    "y": float(y[mm].mean()),
+                    "e": float(y[mm].std() / np.sqrt(mm.sum())),
+                })
+            if len(pts) < 2 or pts[-1]["x"] / pts[0]["x"] < FIG7_MIN_SEP:
                 continue
-            y_lo, y_hi = float(y[lo].mean()), float(y[hi].mean())
-            e_lo = float(y[lo].std() / np.sqrt(lo.sum()))
-            e_hi = float(y[hi].std() / np.sqrt(hi.sum()))
-            dlnx = np.log(x_hi / x_lo)
-            segs.append({
-                "cell": [clo, chi, q2lo, q2hi],
-                "x_lo": x_lo, "y_lo": y_lo, "e_lo": e_lo,
-                "x_hi": x_hi, "y_hi": y_hi, "e_hi": e_hi,
-                "n": int(m.sum()),
-                "slope": (y_hi - y_lo) / dlnx,
-                "slope_err": float(np.hypot(e_lo, e_hi) / dlnx),
-            })
+            _, slope, slope_err = _wls_logslope([p["x"] for p in pts],
+                                                [p["y"] for p in pts],
+                                                [p["e"] for p in pts])
+            segs.append({"cell": [clo, chi, q2lo, q2hi], "points": pts,
+                         "n": n_cell, "slope": slope, "slope_err": slope_err})
     return segs
 
 
@@ -556,8 +559,10 @@ def dependence_decomposition(samples):
                           [r["sem"] for r in rows])
         return {"rows": rows, "slope": s[1], "slope_err": s[2]}
 
-    out["inclusive"] = inclusive_profile("plab", FIG7_PLAB_EDGES)
-    out["inclusive_pcm"] = inclusive_profile("pcm", FIG7_PCM_EDGES)
+    out["inclusive"] = inclusive_profile(
+        "plab", np.geomspace(FIG7_PLAB_EDGES[0], FIG7_PLAB_EDGES[-1], 21))
+    out["inclusive_pcm"] = inclusive_profile(
+        "pcm", np.geomspace(FIG7_PCM_EDGES[0], FIG7_PCM_EDGES[-1], 17))
     return out
 
 

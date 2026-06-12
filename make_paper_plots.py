@@ -578,8 +578,9 @@ def fig7(res, outdir):
     # ── vary |p|_lab at fixed (p_CM, Q^2): nothing happens ────────────────
     for seg in con["vary_plab"]["segments"]:
         c = cmap(norm(np.sqrt(seg["cell"][0] * seg["cell"][1])))
-        axl.plot([seg["x_lo"], seg["x_hi"]], [seg["y_lo"], seg["y_hi"]],
-                 "-", color=c, lw=1.6, marker="o", ms=3, mec="none",
+        axl.plot([p["x"] for p in seg["points"]],
+                 [p["y"] for p in seg["points"]],
+                 "-", color=c, lw=1.5, marker="o", ms=2.6, mec="none",
                  alpha=0.95)
     axl.set_title("vary $|p|_{\\rm lab}$ at fixed $(p_{\\rm CM}, Q^2)$",
                   fontsize=13, color="0.15", loc="left")
@@ -595,9 +596,10 @@ def fig7(res, outdir):
 
     # ── vary p_CM at fixed (|p|_lab, Q^2): the structure shifts ───────────
     for seg in con["vary_pcm"]["segments"]:
-        c = cmap(norm(np.sqrt(seg["x_lo"] * seg["x_hi"])))
-        axc.plot([seg["x_lo"], seg["x_hi"]], [seg["y_lo"], seg["y_hi"]],
-                 "-", color=c, lw=1.6, marker="o", ms=3, mec="none",
+        xs = [p["x"] for p in seg["points"]]
+        c = cmap(norm(np.sqrt(xs[0] * xs[-1])))
+        axc.plot(xs, [p["y"] for p in seg["points"]],
+                 "-", color=c, lw=1.5, marker="o", ms=2.6, mec="none",
                  alpha=0.95)
     axc.set_title("vary $p_{\\rm CM}$ at fixed $(|p|_{\\rm lab}, Q^2)$",
                   fontsize=13, color="0.15", loc="left")

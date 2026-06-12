@@ -141,13 +141,15 @@ multicollinearity of global fits:
 
 | Contrast (⟨n₉₀ˡᵃᵇ⟩ slope per e-fold) | Pythia 8 (string) | Herwig 7 (cluster) |
 |---|---|---|
-| vary \|p\|_lab at fixed (p_CM, Q²) | **+0.001 ± 0.004 (stat) ± 0.28 (cell RMS)** | **−0.01 ± 0.01 ± 0.42** |
-| vary p_CM at fixed (\|p\|_lab, Q²) | **+1.37 ± 0.00 ± 0.26** | **+1.49 ± 0.01 ± 0.33** |
+| vary \|p\|_lab at fixed (p_CM, Q²) | **+0.04 ± 0.00 (stat) ± 0.28 (cell RMS)** | **+0.05 ± 0.01 ± 0.42** |
+| vary p_CM at fixed (\|p\|_lab, Q²) | **+1.36 ± 0.00 ± 0.28** | **+1.42 ± 0.01 ± 0.34** |
 
-**Varying a jet's lab momentum at fixed color-frame configuration does
-nothing — consistent with zero in both hadronization paradigms — while
-varying its color-frame momentum at fixed lab kinematics moves the
-structure by +1.4 units per e-fold.**  The cell-to-cell RMS (±0.3)
+(Each cell is profiled in 3–6 quantile bins of the varied quantity and
+the per-cell slope fit over those points.)  **Varying a jet's lab momentum
+at fixed color-frame configuration does essentially nothing — ≤3% of the
+color-frame slope in both hadronization paradigms — while varying its
+color-frame momentum at fixed lab kinematics moves the structure by
++1.4 units per e-fold.**  The cell-to-cell RMS (±0.3)
 reflects selection geometry of the fat (R = 1.0) hemisphere jets (the same
 second-order non-factorizability as Fig. 3's 6.7% residual), not a
 coherent lab dependence: the per-cell tilts average to zero.
