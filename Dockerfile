@@ -32,6 +32,7 @@ WORKDIR /work
 COPY --chown=$MAMBA_USER:$MAMBA_USER generate_events.py /work/
 COPY --chown=$MAMBA_USER:$MAMBA_USER analyze_events.py /work/
 COPY --chown=$MAMBA_USER:$MAMBA_USER make_plots.py /work/
+COPY --chown=$MAMBA_USER:$MAMBA_USER make_figures.py /work/
 COPY --chown=$MAMBA_USER:$MAMBA_USER utils/ /work/utils/
 COPY --chown=$MAMBA_USER:$MAMBA_USER run.sh /work/
 

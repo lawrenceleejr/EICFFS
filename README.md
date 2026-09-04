@@ -41,8 +41,13 @@ The simple charged-particle count N_charged is also stored as a secondary observ
 
 ### The EIC analogy
 
-In NC-DIS (*ep → eX*) the relevant colour rest frame is the **photon-proton
-CM frame** (Breit/γ\*p frame), characterised by the invariant mass *W*:
+In NC-DIS (*ep → eX*) the whole hadronic final state is one colour-connected
+system with four-momentum *P + q* and invariant mass *W*.  Its rest frame, the
+**photon–proton (γ\*p) centre-of-mass frame**, is therefore the colour rest
+frame of the paper.  It is *not* the Breit frame: the two differ by a boost
+along the boson axis (the struck quark carries *W*/2 in the γ\*p frame and
+*Q*/2 in the Breit frame).  The Breit frame is used here only to select the
+current hemisphere.  The DIS invariants:
 
 | Symbol | Definition | Meaning |
 |--------|-----------|---------|
@@ -51,10 +56,15 @@ CM frame** (Breit/γ\*p frame), characterised by the invariant mass *W*:
 | *y*   | P·q / P·k | Inelasticity |
 | *W*   | √((P+q)²) | Photon-proton CM energy = colour rest frame energy |
 
-For **fixed lab-frame jet |p|**, the boost to the colour rest frame changes
-with *W*.  Therefore the same lab-frame jet corresponds to a *different*
-CM-frame momentum at different *W*, → the fragmentation (and hence n₉₀)
-varies with *W* at fixed |p|_lab.  This is the FFS effect at the EIC.
+The γ\*p frame moves along the beam axis with a rapidity *y*_cm that
+*decreases* with *W* (from ≈3 at *W* = 10 GeV to ≈1.3 at *W* = 55 GeV for
+10 × 100 GeV beams).  For **fixed lab-frame jet |p|**, a jet from a higher-*W*
+event is therefore harder in its colour rest frame and fragments into more
+particles: ⟨n₉₀⟩ rises with *W* at fixed |p|_lab.  This is the FFS effect at
+the EIC.  The corrected simulation finds shifts of +35 % to +80 % between
+*W* = 10–15 GeV and *W* = 32–45 GeV for |p|_lab = 2–22 GeV; see
+[`PHYSICS_AUDIT.md`](PHYSICS_AUDIT.md) for the audit, the numbers and the
+literature check (no prior EIC proposal of this kind was found).
 
 ---
 
@@ -67,16 +77,21 @@ EICFFS/
 ├── environment.yml          # Conda/mamba environment spec
 ├── run.sh                   # End-to-end pipeline script
 │
+├── PHYSICS_AUDIT.md         # Audit of the physics, fixes, results, literature check
+│
 ├── generate_events.py       # Step 1 — Pythia8 NC-DIS event generation
-├── analyze_events.py        # Step 2 — FFS analysis → ROOT histograms
-├── make_plots.py            # Step 3 — Publication-quality matplotlib figures
+├── analyze_events.py        # Step 2 — jets, frame boosts, n₉₀ → ROOT trees + histograms
+├── make_figures.py          # Step 3 — Tufte-style figures (one panel per PDF)
+├── make_plots.py            # Legacy multi-panel plots from the histograms
 │
 ├── utils/
 │   ├── __init__.py
-│   └── dis_kinematics.py    # 4-vector math, DIS invariants, frame boosts
+│   ├── dis_kinematics.py    # 4-vector math, DIS invariants, frame boosts (vectorised)
+│   └── tufte.mplstyle       # matplotlib style used by make_figures.py
 │
-├── data/                    # Generated events & histograms (gitignored)
-└── plots/                   # Output figures (gitignored)
+├── figures/                 # Committed figures from the 2.4 M-event reference run
+├── data/                    # Generated events & analysis file (gitignored)
+└── plots/                   # Legacy plot output (gitignored)
 ```
 
 ---
@@ -97,15 +112,16 @@ docker compose build
 docker compose run eicffs
 
 # Or run steps individually:
-docker compose run generate   # generate 200k events → data/events.parquet
-docker compose run analyze    # fill histograms     → data/histograms.root
-docker compose run plot       # make figures        → plots/*.pdf
+docker compose run generate   # one seed, 300k events with W > 10 GeV → data/events_1.parquet
+docker compose run analyze    # jets + frames + n90 → data/analysis.root
+docker compose run plot       # figures → figures/*.pdf
 ```
 
 ### Customise via environment variables
 
 ```bash
-N_EVENTS=50000 docker compose run generate   # quick test with 50k events
+N_EVENTS=50000 N_SEEDS=1 ./run.sh        # quick test
+N_SEEDS=8 N_PARALLEL=4 WMIN=10 ./run.sh   # the reference run (≈5 min on 4 cores)
 ```
 
 ---
@@ -126,10 +142,13 @@ conda activate eicffs
 ./run.sh
 
 # Step by step
-python generate_events.py --n-events 200000 --output data/events.parquet --quiet
-python analyze_events.py  data/events.parquet --output data/histograms.root
-python make_plots.py      data/histograms.root --outdir plots/
+python generate_events.py --n-events 300000 --seed 1 --Wmin 10 --output data/events_1.parquet --quiet
+python analyze_events.py  "data/events_*.parquet" --output data/analysis.root
+python make_figures.py    data/analysis.root --events data/events_1.parquet --outdir figures/
 ```
+
+`pip install pythia8mc fastjet uproot awkward hist vector matplotlib scipy pyarrow`
+is enough without conda; the generator imports `pythia8` or `pythia8mc`.
 
 ---
 
@@ -138,8 +157,11 @@ python make_plots.py      data/histograms.root --outdir plots/
 ### `generate_events.py`
 
 Generates NC-DIS events at EIC kinematics using **Pythia8** and saves
-particle-level data (all final-state hadrons per event) to an **Apache
-Parquet** file via `awkward-array`.
+particle-level data (all final-state hadrons and photons per event, the
+scattered lepton and its QED radiation removed) together with the exchanged
+boson *q*, the scattered lepton, the beam proton and the struck parton
+four-vectors to an **Apache Parquet** file via `awkward-array`.  Lepton-beam
+ISR is off and the DIS dipole-recoil shower is on; see `PHYSICS_AUDIT.md`.
 
 Key options:
 
@@ -149,14 +171,21 @@ Key options:
 | `--electron-energy` | 10 GeV | Electron beam energy |
 | `--proton-energy` | 100 GeV | Proton beam energy |
 | `--Q2min` / `--Q2max` | 1 / 1000 GeV² | Phase-space cuts |
+| `--Wmin` | 0 | Keep only events with *W* above this (GeV) |
+| `--seed` | 42 | Pythia8 random seed |
 | `--output` | `data/events.parquet` | Output path |
+| `--lepton-isr` | off | Re-enable lepton-beam ISR |
 | `--quiet` | off | Suppress Pythia8 output |
 
 ### `analyze_events.py`
 
-Reads the Parquet event file, reconstructs DIS kinematics, finds jets
-(anti-*k*_T, **R = 0.4** via **FastJet** or built-in fallback), and fills
-the following histograms, written to a **ROOT** file via `uproot`:
+Reads one or more Parquet event files, finds anti-*k*_T **R = 0.4** jets in
+the lab with **FastJet** (`--no-fastjet` for a cone fallback), boosts each jet
+into the γ\*p and Breit frames, and writes a per-jet TTree `jets` (W, Q², x, y,
+|p|_lab, p_T, η, |p|_cm, Breit-frame p_z, current-hemisphere flag, N_const,
+N_charged, n₉₀ in the lab, n₉₀ from the same constituents in the γ\*p frame,
+charged-only n₉₀, leading-constituent z, ΔR to the struck parton) plus a
+per-event TTree `events` and the following histograms (current jets only):
 
 | Histogram | Axes | Observable |
 |-----------|------|-----------|
@@ -169,12 +198,32 @@ the following histograms, written to a **ROOT** file via `uproot`:
 | `jet_eta_pt` | η × pT | Jet landscape |
 | `n_jets` | N_jets | Jet multiplicity per event |
 
-### `make_plots.py`
+### `make_figures.py`
 
-Reads ROOT histograms and produces five publication-quality figures:
+Reads the `jets` tree and draws one figure per PDF (PNG previews alongside),
+following Tufte: range frames, direct labels, no grids or legends.
 
 | File | Content |
 |------|---------|
+| `ffs_fan.pdf` | **Primary result**: ⟨n₉₀⟩ vs \|p\|_lab, one line per *W* slice |
+| `ffs_boost_factor.pdf` | ⟨n₉₀⟩ vs \|p\|_lab / \|p\|_cm: the same colour-frame jet under different boosts |
+| `ffs_collapse.pdf` | ⟨n₉₀⟩ vs \|p\|_cm on the fan's scale: the *W* slices agree and are nearly flat |
+| `ffs_ratio.pdf` | ⟨n₉₀⟩ relative to the *W* = 10–15 GeV slice — size of the shift |
+| `ffs_slopegraph.pdf` | low-*W* → high-*W* shift per \|p\|_lab bin, with percentages |
+| `ffs_distribution.pdf` | n₉₀ quantile bands vs *W* at \|p\|_lab = 4.5–10 GeV |
+| `ffs_wq_table.pdf` | ⟨n₉₀⟩ over the (*W*, *Q*) plane: colour-frame energy vs hard scale |
+| `nch_fan.pdf`, `ncon_boost_factor.pdf` | the same for N_charged and N_constituents |
+| `boost_map.pdf` | rapidity of the colour rest frame across (x, Q²), iso-*W* lines, the jets |
+| `plateau.pdf` | charged-hadron rapidity plateau in the γ\*p frame per *W* slice |
+
+![fan](figures/ffs_fan.png)
+![boost factor](figures/ffs_boost_factor.png)
+
+### `make_plots.py` (legacy)
+
+The original multi-panel figures from the histograms (`./run.sh --legacy-plots`).
+
+------|---------|
 | `ffs_main.pdf` | **Primary result**: ⟨n₉₀⟩ vs *W* for each \|p\|_lab bin |
 | `ffs_ratio.pdf` | ⟨n₉₀⟩ ratio to lowest-|p|_lab bin — FFS magnitude |
 | `kinematics.pdf` | DIS kinematic plane (Q² vs W) + marginal distributions |
@@ -187,8 +236,9 @@ Reads ROOT histograms and produces five publication-quality figures:
 
 | Package | Role |
 |---------|------|
-| [Pythia8](https://pythia.org) | Hard-process MC event generation |
-| [FastJet](https://fastjet.fr) | Anti-*k*_T jet finding (R=0.4) |
+| [Pythia8](https://pythia.org) | Hard-process MC event generation (`pythia8` or `pythia8mc`) |
+| [FastJet](https://fastjet.fr) | Anti-*k*_T jet finding (R=0.4), awkward interface |
+| [vector](https://vector.readthedocs.io) | Lorentz-vector behaviours for awkward arrays |
 | [uproot](https://uproot.readthedocs.io) | ROOT I/O (no ROOT dependency) |
 | [awkward-array](https://awkward-array.org) | Ragged array handling |
 | [hist](https://hist.readthedocs.io) | Histogram filling & manipulation |

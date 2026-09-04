@@ -9,12 +9,13 @@ services:
     volumes:
       # Mount local data directory for output persistence
       - ./data:/work/data
+      - ./figures:/work/figures
       - ./plots:/work/plots
     environment:
       - PYTHIA8DATA=/opt/conda/share/Pythia8/xmldoc
     command: /work/run.sh
 
-  # Run only event generation
+  # Run only event generation (one seed; run several with different --seed)
   generate:
     image: eicffs:latest
     volumes:
@@ -23,8 +24,10 @@ services:
       - PYTHIA8DATA=/opt/conda/share/Pythia8/xmldoc
     command: >
       python generate_events.py
-        --n-events 200000
-        --output /work/data/events.parquet
+        --n-events 300000
+        --seed 1
+        --Wmin 10
+        --output /work/data/events_1.parquet
         --quiet
 
   # Run only analysis
@@ -34,16 +37,17 @@ services:
       - ./data:/work/data
     command: >
       python analyze_events.py
-        /work/data/events.parquet
-        --output /work/data/histograms.root
+        /work/data/events_*.parquet
+        --output /work/data/analysis.root
 
   # Run only plotting
   plot:
     image: eicffs:latest
     volumes:
       - ./data:/work/data
-      - ./plots:/work/plots
+      - ./figures:/work/figures
     command: >
-      python make_plots.py
-        /work/data/histograms.root
-        --outdir /work/plots
+      python make_figures.py
+        /work/data/analysis.root
+        --events /work/data/events_1.parquet
+        --outdir /work/figures
