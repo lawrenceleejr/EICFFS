@@ -6,7 +6,10 @@ Reads particle-level EIC DIS events (Parquet) produced by generate_events.py,
 finds anti-kT R = 0.4 jets in the laboratory frame, and writes
 
   * a flat per-jet TTree ``jets`` with lab-, γ*p-CM- and Breit-frame
-    quantities and the n₉₀ observable, and
+    quantities and the n₉₀ observable,
+  * a per-jet TTree ``cmjets`` for jets clustered *in the colour rest frame*
+    with an angular (e+e-) anti-kT algorithm, carrying the jet's energy in
+    that frame and its momentum back in the lab, and
   * a per-event TTree ``events``, and
   * the legacy histograms used by make_plots.py (filled with current jets),
 
@@ -74,6 +77,12 @@ JET_R = 0.4          # anti-kT radius, as in arXiv:2308.10951
 JET_ETA_MAX = 3.5    # EIC central-detector acceptance (lab)
 JET_PT_MIN = 2.0     # GeV, lab frame
 CHUNK = 20_000       # events per processing chunk
+
+# Jets clustered in the colour rest frame (γ*p CM).  There the current quark
+# sits on the boson axis, where η–φ clustering is singular, so an angular
+# (e+e-) algorithm is used and R is a half-angle in radians.
+CM_R = 0.4
+CM_E_MIN = 1.0       # GeV, minimum jet energy in the colour rest frame
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +204,33 @@ def cluster_cone(parts, ptmin=JET_PT_MIN, R=JET_R):
                 "pz": ak.Array([[]] * len(jets_out)), "E": ak.Array([[]] * len(jets_out))},
                with_name="Momentum4D")
     return jets, ak.Array(cidx_out)
+
+
+def cluster_cm(parts_cm, R=CM_R, emin=CM_E_MIN):
+    """
+    Angular anti-kT (e+e- genkt, p = −1) on particles already expressed in the
+    colour rest frame.  Returns (jets, constituent_index) with no pT cut: in
+    that frame transverse momentum relative to the lab beam is meaningless.
+    """
+    import fastjet as fj
+    jetdef = fj.JetDefinition(fj.ee_genkt_algorithm, R, -1.0)
+    cs = fj.ClusterSequence(parts_cm, jetdef)
+    return cs.inclusive_jets(min_pt=0.0), cs.constituent_index(min_pt=0.0)
+
+
+def rotation_to_z(axis):
+    """Per-event rotation matrices taking each unit vector in ``axis`` to +z."""
+    axis = np.asarray(axis, float)
+    z = np.array([0.0, 0.0, 1.0])
+    v = np.cross(axis, z)
+    s2 = np.sum(v**2, axis=1)
+    c = axis @ z
+    K = np.zeros((len(axis), 3, 3))
+    K[:, 0, 1], K[:, 0, 2] = -v[:, 2], v[:, 1]
+    K[:, 1, 0], K[:, 1, 2] = v[:, 2], -v[:, 0]
+    K[:, 2, 0], K[:, 2, 1] = -v[:, 1], v[:, 0]
+    fac = np.where(s2 > 1e-18, (1.0 - c) / np.where(s2 > 1e-18, s2, 1.0), 0.0)
+    return np.eye(3)[None] + K + fac[:, None, None] * (K @ K)
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +406,64 @@ def analyze_chunk(events, use_fastjet=True):
 
     n_current = np.bincount(ev_of_jet[current], minlength=n_ev)
 
+    # ── Jets clustered in the colour rest frame ────────────────────────────
+    # Boost every final-state particle into the γ*p frame and rotate the boson
+    # onto +z, so that pz > 0 is the current hemisphere and the angular
+    # algorithm sees a well-defined jet axis.
+    n_par = ak.to_numpy(ak.num(parts))
+    ev_of_par = np.repeat(np.arange(n_ev), n_par)
+    A = np.stack([ak.to_numpy(ak.flatten(parts.px)), ak.to_numpy(ak.flatten(parts.py)),
+                  ak.to_numpy(ak.flatten(parts.pz)), ak.to_numpy(ak.flatten(parts.E))],
+                 axis=1).astype(float)
+    A_cm = np.einsum("nij,nj->ni", L_hcm[ev_of_par], A)
+    Rot = rotation_to_z(qhat_hcm)
+    A_rot = np.einsum("nij,nj->ni", Rot[ev_of_par], A_cm[:, :3])
+    parts_cm = ak.unflatten(
+        ak.zip({"px": A_rot[:, 0], "py": A_rot[:, 1], "pz": A_rot[:, 2],
+                "E": A_cm[:, 3]}, with_name="Momentum4D"), n_par)
+
+    cjets, ccidx = cluster_cm(parts_cm)
+    keep_c = (cjets.E > CM_E_MIN) & (cjets.pz > 0)          # current hemisphere
+    cjets, ccidx = cjets[keep_c], ccidx[keep_c]
+    order_c = ak.argsort(cjets.E, ascending=False)
+    cjets, ccidx = cjets[order_c], ccidx[order_c]
+    n_cj_ev = ak.to_numpy(ak.num(cjets))
+    ev_of_cj = np.repeat(np.arange(n_ev), n_cj_ev)
+    CJ = np.stack([ak.to_numpy(ak.flatten(cjets[c])) for c in ("px", "py", "pz", "E")],
+                  axis=1)
+    n_cj = len(CJ)
+
+    # Undo the rotation and the boost to get the same jet in the lab.
+    CJ_lab = np.einsum("nij,nj->ni", np.linalg.inv(L_hcm)[ev_of_cj],
+                       np.concatenate([np.einsum("nji,nj->ni", Rot[ev_of_cj], CJ[:, :3]),
+                                       CJ[:, 3:]], axis=1))
+    cj_pt_lab = np.hypot(CJ_lab[:, 0], CJ_lab[:, 1])
+    cj_p_lab = np.linalg.norm(CJ_lab[:, :3], axis=1)
+    cj_eta_lab = np.arcsinh(CJ_lab[:, 2] / np.maximum(cj_pt_lab, 1e-9))
+    cj_p_cm = np.linalg.norm(CJ[:, :3], axis=1)
+    cj_cos = CJ[:, 2] / np.maximum(cj_p_cm, 1e-9)           # cos θ* to the boson axis
+
+    cflat = ak.flatten(ccidx, axis=1)
+    cper = ak.to_numpy(ak.flatten(ak.num(ccidx, axis=2)))
+    cj_of_c = np.repeat(np.arange(n_cj), cper)
+    par_offset = np.concatenate([[0], np.cumsum(n_par)[:-1]])
+    gidx = par_offset[ev_of_cj[cj_of_c]] + ak.to_numpy(ak.flatten(cflat))
+    cc_p_cm = np.linalg.norm(A_cm[gidx][:, :3], axis=1)
+    cc_p_lab = np.linalg.norm(A[gidx][:, :3], axis=1)
+    cc_charged = ak.to_numpy(ak.flatten(charge))[gidx] != 0
+
+    cj_out = {
+        "W": W[ev_of_cj], "Q2": Q2[ev_of_cj], "x": x[ev_of_cj], "y": y[ev_of_cj],
+        "y_hcm": y_hcm[ev_of_cj], "rank": ak.to_numpy(ak.flatten(ak.local_index(cjets))).astype(np.int32),
+        "e_cm": CJ[:, 3], "p_cm": cj_p_cm, "cos_cm": cj_cos,
+        "pt_lab": cj_pt_lab, "p_lab": cj_p_lab, "eta_lab": cj_eta_lab,
+        "n_const": cper.astype(np.int32),
+        "n_charged": np.bincount(cj_of_c[cc_charged], minlength=n_cj).astype(np.int32),
+        # n90 from the same constituents, ordered by colour-frame and by lab momentum
+        "n90_cm": n_x_segments(cc_p_cm, cj_of_c, n_cj),
+        "n90_labmom": n_x_segments(cc_p_lab, cj_of_c, n_cj),
+    }
+
     ev_out = {
         "W": W, "Q2": Q2, "x": x, "y": y, "y_hcm": y_hcm, "gamma_hcm": gamma_hcm,
         "n_jets": n_jets.astype(np.int32), "n_current": n_current.astype(np.int32),
@@ -386,7 +480,8 @@ def analyze_chunk(events, use_fastjet=True):
         "n90": n90, "n90_hcm": n90_hcm, "n90_ch": n90_ch, "z_lead": z_lead,
         "dR_parton": dR_parton, "dphi_lepton": dphi_lepton,
     }
-    return ev_out, jet_out
+    ev_out["n_cm_jets"] = n_cj_ev.astype(np.int32)
+    return ev_out, jet_out, cj_out
 
 
 # ---------------------------------------------------------------------------
@@ -394,11 +489,13 @@ def analyze_chunk(events, use_fastjet=True):
 # ---------------------------------------------------------------------------
 
 def analyze(args):
+    global CM_R
+    CM_R = args.cm_radius
     files = []
     for pattern in args.inputs:
         files.extend(sorted(glob.glob(pattern)) or [pattern])
     hists = make_histograms()
-    ev_parts, jet_parts = [], []
+    ev_parts, jet_parts, cj_parts = [], [], []
     t0 = time.time()
     n_done = 0
 
@@ -408,10 +505,11 @@ def analyze(args):
         print(f"{fname}: {n:,} events", flush=True)
         for start in range(0, n, CHUNK):
             chunk = events[start:start + CHUNK]
-            ev_out, jet_out = analyze_chunk(chunk, use_fastjet=not args.no_fastjet)
+            ev_out, jet_out, cj_out = analyze_chunk(chunk, use_fastjet=not args.no_fastjet)
             fill_legacy(hists, ev_out, jet_out)
             ev_parts.append(ev_out)
             jet_parts.append(jet_out)
+            cj_parts.append(cj_out)
             n_done += len(chunk)
             rate = n_done / (time.time() - t0)
             print(f"  {n_done:>9,} events   {len(jet_out['W']):>7,} jets in chunk   "
@@ -419,6 +517,7 @@ def analyze(args):
 
     ev_all = {k: np.concatenate([p[k] for p in ev_parts]) for k in ev_parts[0]}
     jet_all = {k: np.concatenate([p[k] for p in jet_parts]) for k in jet_parts[0]}
+    cj_all = {k: np.concatenate([p[k] for p in cj_parts]) for k in cj_parts[0]}
 
     n_ev = len(ev_all["W"])
     n_jet = len(jet_all["W"])
@@ -426,11 +525,14 @@ def analyze(args):
     print(f"\n{n_ev:,} events, {n_jet:,} jets (|η|<{JET_ETA_MAX}, pT>{JET_PT_MIN} GeV), "
           f"{n_cur:,} in the Breit current hemisphere")
     print(f"Events with ≥1 current jet: {100 * (ev_all['n_current'] > 0).mean():.1f}%")
+    print(f"{len(cj_all['W']):,} colour-frame jets "
+          f"(angular anti-kT R = {CM_R}, E > {CM_E_MIN} GeV, current hemisphere)")
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     print(f"Writing {args.output} …", flush=True)
     with uproot.recreate(args.output) as f:
         f["jets"] = jet_all
+        f["cmjets"] = cj_all
         f["events"] = ev_all
         for name, h in hists.items():
             f[name] = h
@@ -445,6 +547,8 @@ def parse_args():
                    help="Input Parquet file(s) or glob pattern(s) from generate_events.py")
     p.add_argument("--output", type=str, default="data/analysis.root",
                    help="Output ROOT file")
+    p.add_argument("--cm-radius", type=float, default=CM_R,
+                   help="Angular jet radius (radians) used in the colour rest frame")
     p.add_argument("--no-fastjet", action="store_true",
                    help="Use the simple cone fallback instead of FastJet anti-kT")
     return p.parse_args()
