@@ -187,3 +187,69 @@ class DISKinematics:
             return (f"DISKinematics(Q2={self.Q2:.2f} GeV², "
                     f"W={self.W:.2f} GeV, x={self.x:.4f}, y={self.y:.3f})")
         return "DISKinematics(invalid)"
+
+
+# ---------------------------------------------------------------------------
+# Vectorised boosts (numpy, many events at once)
+# ---------------------------------------------------------------------------
+
+def rest_frame_boost_matrix(p_boost: np.ndarray) -> np.ndarray:
+    """
+    Lorentz matrices that boost into the rest frame of each ``p_boost``.
+
+    Parameters
+    ----------
+    p_boost : array, shape (N, 4)
+        Time-like four-vectors (px, py, pz, E), one per event.
+
+    Returns
+    -------
+    array, shape (N, 4, 4)
+        Matrices L such that  p' = L @ p  (with p in (px, py, pz, E) order)
+        is p expressed in the rest frame of p_boost.
+    """
+    p_boost = np.asarray(p_boost, dtype=float)
+    E = p_boost[:, 3]
+    m = np.sqrt(np.maximum(E**2 - np.sum(p_boost[:, :3]**2, axis=1), 1e-12))
+    beta = p_boost[:, :3] / E[:, None]                 # (N,3)
+    gamma = E / m                                      # (N,)
+    b2 = np.sum(beta**2, axis=1)
+    coef = np.where(b2 > 0, (gamma - 1.0) / np.where(b2 > 0, b2, 1.0), 0.0)
+
+    L = np.zeros((len(E), 4, 4))
+    L[:, :3, :3] = np.eye(3)[None] + coef[:, None, None] * beta[:, :, None] * beta[:, None, :]
+    L[:, :3, 3] = -gamma[:, None] * beta
+    L[:, 3, :3] = -gamma[:, None] * beta
+    L[:, 3, 3] = gamma
+    return L
+
+
+def hcm_boost_matrix(P_in: np.ndarray, q: np.ndarray) -> np.ndarray:
+    """Boost matrices into the γ*p (hadronic centre-of-mass) frame, rest frame of P + q."""
+    return rest_frame_boost_matrix(np.asarray(P_in, float) + np.asarray(q, float))
+
+
+def breit_boost_matrix(P_in: np.ndarray, q: np.ndarray) -> np.ndarray:
+    """
+    Boost matrices into the Breit frame, the rest frame of q + 2x P.
+
+    In that frame the exchanged boson has zero energy; the struck quark enters
+    with momentum +Q/2 along the boson direction and leaves with −Q/2.
+    """
+    P_in = np.asarray(P_in, float)
+    q = np.asarray(q, float)
+    Q2 = -(q[:, 3]**2 - np.sum(q[:, :3]**2, axis=1))
+    Pdotq = P_in[:, 3] * q[:, 3] - np.sum(P_in[:, :3] * q[:, :3], axis=1)
+    x = Q2 / (2.0 * Pdotq)
+    return rest_frame_boost_matrix(q + 2.0 * x[:, None] * P_in)
+
+
+def apply_boost(L: np.ndarray, p: np.ndarray) -> np.ndarray:
+    """Apply per-event matrices L (N,4,4) to four-vectors p (N,4)."""
+    return np.einsum("nij,nj->ni", L, np.asarray(p, float))
+
+
+def rapidity(p: np.ndarray) -> np.ndarray:
+    """Longitudinal rapidity ½ ln[(E+pz)/(E−pz)] of four-vectors (N,4)."""
+    p = np.asarray(p, float)
+    return 0.5 * np.log((p[:, 3] + p[:, 2]) / (p[:, 3] - p[:, 2]))
