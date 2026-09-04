@@ -320,12 +320,12 @@ def generate_and_save(args):
         "parton":  vec4(ev_parton),   # struck outgoing parton (hard process)
         "parton_id": np.array(ev_parton_id, dtype=np.int32),
         "particles": {
-            "px":     ak.Array(par_px),
-            "py":     ak.Array(par_py),
-            "pz":     ak.Array(par_pz),
-            "e":      ak.Array(par_e),
-            "pdg":    ak.Array(par_pdg),
-            "charge": ak.Array(par_charge),
+            "px":     ak.values_astype(ak.Array(par_px), np.float32),
+            "py":     ak.values_astype(ak.Array(par_py), np.float32),
+            "pz":     ak.values_astype(ak.Array(par_pz), np.float32),
+            "e":      ak.values_astype(ak.Array(par_e), np.float32),
+            "pdg":    ak.values_astype(ak.Array(par_pdg), np.int32),
+            "charge": ak.values_astype(ak.Array(par_charge), np.int8),
         },
     })
 
