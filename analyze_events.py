@@ -44,7 +44,6 @@ import glob
 import os
 import sys
 import time
-import warnings
 
 import numpy as np
 import awkward as ak
@@ -90,7 +89,7 @@ def compute_n_x(const_pmags, threshold=0.90):
     3. Linearly interpolate to the threshold.
 
     >>> round(compute_n_x([10., 5., 3., 1.]), 3)      # cumfrac .526 .789 .947 1
-    2.703
+    2.7
     """
     pmags = np.sort(np.asarray(const_pmags, dtype=float))[::-1]
     if len(pmags) == 0 or pmags.sum() <= 0:
