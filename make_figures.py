@@ -54,6 +54,16 @@ MIN_ENTRIES = 40
 
 # Single-hue sequential ramp for the ordered variable W (light = low W)
 W_COLORS = ["#9ecae1", "#6baed6", "#3182bd", "#08519c", "#08306b"]
+# Sequential ramp for the ordered variable E_cm (six steps, light = low energy)
+E_COLORS = ["#c6dbef", "#9ecae1", "#6baed6", "#3182bd", "#08519c", "#08306b"]
+E_SLICES = [(1.5, 2.5), (2.5, 4), (4, 6), (6, 9), (9, 14), (14, 22)]
+PCM_SLICES = [(2, 3.3), (3.3, 5), (5, 7.5), (7.5, 11), (11, 16), (16, 24)]
+PT_EDGES_CM = np.array([0.6, 1.0, 1.5, 2.0, 2.7, 3.5, 4.5, 6.0, 8.0, 11.0])
+PT_EDGES_LAB = np.array([2.0, 2.5, 3.2, 4.0, 5.0, 6.5, 8.0, 10.0, 13.0])
+
+
+def e_label(lo, hi):
+    return rf"$E_{{\rm cm}}$ = {lo:g}$-${hi:g} GeV"
 INK = "#1f1f1f"
 MUTED = "#8a8a8a"
 FAINT = "#d9d9d9"
@@ -78,6 +88,19 @@ def load_jets(paths):
     jets = {k: np.concatenate([p[k] for p in parts]) for k in cols}
     sel = jets["current"] & np.isfinite(jets["n90"])
     return {k: v[sel] for k, v in jets.items()}
+
+
+def load_cmjets(paths):
+    """Jets clustered in the colour rest frame (tree ``cmjets``)."""
+    files = []
+    for p in paths:
+        files.extend(sorted(glob.glob(p)) or [p])
+    cols = ["W", "Q2", "x", "y", "e_cm", "p_cm", "cos_cm", "pt_lab", "p_lab",
+            "eta_lab", "n_const", "n_charged", "n90_cm", "n90_labmom"]
+    parts = [uproot.open(f)["cmjets"].arrays(cols, library="np") for f in files]
+    cj = {k: np.concatenate([p[k] for p in parts]) for k in cols}
+    ok = np.isfinite(cj["n90_cm"])
+    return {k: v[ok] for k, v in cj.items()}
 
 
 def profile(xvals, yvals, edges, min_entries=MIN_ENTRIES):
@@ -162,6 +185,11 @@ def save(fig, outdir, name):
     print(f"  → {pdf}")
 
 
+def eic_note_cm():
+    return (rf"Pythia 8 NC DIS, {E_LEPTON:.0f}$\times${E_PROTON:.0f} GeV, angular anti-$k_T$ "
+            rf"$R$ = 0.4 in the $\gamma^*p$ frame, $E_{{\rm cm}} > 1$ GeV, current hemisphere")
+
+
 def eic_note():
     return (rf"Pythia 8 NC DIS, {E_LEPTON:.0f}$\times${E_PROTON:.0f} GeV, anti-$k_T$ $R$ = 0.4, "
             rf"$p_T^{{\rm lab}} > 2$ GeV, $|\eta| < 3.5$, Breit current hemisphere")
@@ -240,6 +268,137 @@ def fig_collapse(jets, outdir, obs="n90", name="ffs_collapse",
                 "dependence on colour-frame momentum is weak: most of the lab-frame "
                 "spread is the boost, not the jet.")
     save(fig, outdir, name)
+
+
+# ---------------------------------------------------------------------------
+# The flatness test: which frame organises fragmentation?
+# ---------------------------------------------------------------------------
+
+def _flat_panel(ax, slice_var, x, y, slices, colors, edges, label_fn,
+                label_extremes_only=False):
+    """Profile y against x within slices of slice_var; draw and measure flatness."""
+    labels = EndLabels(ax)
+    drawn = []
+    allx, ally, spreads = [], [], {}
+    for (lo, hi), col in zip(slices, colors):
+        m = (slice_var >= lo) & (slice_var < hi)
+        xc, mu, se = profile(x[m], y[m], edges, min_entries=150)
+        ok = np.isfinite(mu)
+        if ok.sum() < 3:
+            continue
+        ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=col, lw=1.2, elinewidth=0.6,
+                    capsize=0, marker="o", ms=3, mec="white", mew=0.4)
+        drawn.append((xc[ok], mu[ok], label_fn(lo, hi), col))
+        spreads[(lo, hi)] = 100 * (mu[ok].max() - mu[ok].min()) / mu[ok].mean()
+        allx.append(xc[ok])
+        ally.append(mu[ok])
+    for k, (xx, yy, txt, col) in enumerate(drawn):
+        if label_extremes_only and 0 < k < len(drawn) - 1:
+            continue
+        labels.add(xx, yy, txt, col)
+    return labels, spreads, np.concatenate(allx), np.concatenate(ally)
+
+
+def fig_flat_cm(cj, outdir):
+    """n90 of colour-frame jets against lab pT, sliced in colour-frame energy."""
+    fig, ax = plt.subplots(figsize=(4.6, 3.4))
+    labels, spreads, allx, ally = _flat_panel(
+        ax, cj["e_cm"], cj["pt_lab"], cj["n90_cm"], E_SLICES, E_COLORS,
+        PT_EDGES_CM, e_label)
+    ax.set_xscale("log")
+    ax.set_xticks([0.7, 1, 2, 3, 5, 8])
+    ax.set_xticklabels(["0.7", "1", "2", "3", "5", "8"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"jet transverse momentum in the lab, $p_T^{\rm lab}$  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$ in the colour rest frame")
+    ax.set_xlim(0.55, 24)
+    range_frame(ax, allx, ally)
+    labels.draw()
+    worst = max(spreads.values())
+    caption(ax, "Jets clustered in the colour rest frame with an angular algorithm, then "
+                "labelled by their energy in that frame.  Every line is flat: across a factor "
+                f"of ten in lab transverse momentum no slice varies by more than {worst:.0f}%.  "
+                "This is the frame that organises fragmentation.\n" + eic_note_cm())
+    save(fig, outdir, "flat_cmjets")
+    return ax.get_ylim(), spreads
+
+
+def fig_flat_lab(jets, outdir, ylim=None):
+    """The same test for lab-clustered jets, sliced in colour-frame momentum."""
+    fig, ax = plt.subplots(figsize=(4.6, 3.4))
+    labels, spreads, allx, ally = _flat_panel(
+        ax, jets["p_hcm"], jets["pt"], jets["n90"], PCM_SLICES, E_COLORS,
+        PT_EDGES_LAB, lambda lo, hi: rf"$|\vec p|_{{\rm cm}}$ = {lo:g}$-${hi:g} GeV",
+        label_extremes_only=True)
+    ax.set_xscale("log")
+    ax.set_xticks([2, 3, 5, 8, 12])
+    ax.set_xticklabels(["2", "3", "5", "8", "12"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"jet transverse momentum in the lab, $p_T^{\rm lab}$  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$ of lab-frame jets")
+    ax.set_xlim(1.8, 34)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    range_frame(ax, allx, ally)
+    labels.draw()
+    ax.annotate("four more slices between,\nindistinguishable", (6.0, 1.85),
+                fontsize=7, color=MUTED, ha="left", va="top")
+    worst = max(spreads.values())
+    caption(ax, "The identical test for jets clustered in the lab with anti-$k_T$ $R$ = 0.4, "
+                "carrying the same colour-frame labels and drawn on the same vertical scale.  "
+                f"The slices collapse onto one rising curve and span {worst:.0f}%: a lab-frame "
+                "jet definition measures the lab cone, not the fragmenting system.\n" + eic_note())
+    save(fig, outdir, "flat_labjets")
+    return spreads
+
+
+def fig_universal_cm(cj, outdir):
+    """n90 against colour-frame energy, sliced in lab pT: a single curve."""
+    fig, ax = plt.subplots(figsize=(4.6, 3.4))
+    edges = np.array([1.5, 2.2, 3.2, 4.5, 6.5, 9.0, 13.0, 18.0, 25.0])
+    slices = [(0.6, 1.2), (1.2, 2.0), (2.0, 3.2), (3.2, 5.0), (5.0, 9.0)]
+    labels, spreads, allx, ally = _flat_panel(
+        ax, cj["pt_lab"], cj["e_cm"], cj["n90_cm"], slices, W_COLORS, edges,
+        lambda lo, hi: rf"$p_T^{{\rm lab}}$ = {lo:g}$-${hi:g} GeV",
+        label_extremes_only=True)
+    ax.set_xscale("log")
+    ax.set_xticks([2, 3, 5, 8, 12, 20])
+    ax.set_xticklabels(["2", "3", "5", "8", "12", "20"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"jet energy in the colour rest frame, $E_{\rm cm}$  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$ in the colour rest frame")
+    ax.set_xlim(1.4, 50)
+    range_frame(ax, allx, ally)
+    labels.draw()
+    ax.annotate("three more slices between,\nall within a few percent", (5.0, 2.15),
+                fontsize=7, color=MUTED, ha="left", va="top")
+    caption(ax, "The converse view of the same jets: against colour-frame energy the lab-momentum "
+                "slices fall on one curve, a factor of ten in lab momentum collapsed onto a single "
+                "line.  Measured in the right frame, one variable carries the whole dependence.")
+    save(fig, outdir, "universal_cm")
+
+
+def fig_pt_fan(jets, outdir):
+    """Lab jets against lab pT, sliced in W: the fan nearly closes."""
+    fig, ax = plt.subplots(figsize=(4.6, 3.2))
+    labels, spreads, allx, ally = _flat_panel(
+        ax, jets["W"], jets["pt"], jets["n90"], W_SLICES, W_COLORS,
+        PT_EDGES_LAB, w_label)
+    ax.set_xscale("log")
+    ax.set_xticks([2, 3, 5, 8, 12])
+    ax.set_xticklabels(["2", "3", "5", "8", "12"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"$p_T^{\rm lab}$  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$")
+    ax.set_xlim(1.8, 30)
+    range_frame(ax, allx, ally)
+    labels.draw()
+    caption(ax, "Why lab transverse momentum is the honest abscissa for a lab jet: at fixed "
+                "$p_T^{\\rm lab}$ the $W$ slices differ by a few percent.  The wide fan against "
+                "total $|\\vec p|_{\\rm lab}$ is largely a change of jet angle, since a "
+                "fixed-$|\\vec p|$ jet at higher $W$ is more central and therefore harder in "
+                "$p_T$.")
+    save(fig, outdir, "pt_fan")
 
 
 # ---------------------------------------------------------------------------
@@ -580,6 +739,15 @@ def main():
     args = parse_args()
     jets = load_jets(args.inputs)
     print(f"{len(jets['W']):,} current jets loaded")
+    cj = load_cmjets(args.inputs)
+    print(f"{len(cj['e_cm']):,} colour-frame jets loaded")
+    ylim_cm, sp_cm = fig_flat_cm(cj, args.outdir)
+    sp_lab = fig_flat_lab(jets, args.outdir, ylim=ylim_cm)
+    fig_universal_cm(cj, args.outdir)
+    fig_pt_fan(jets, args.outdir)
+    print(f"  flatness: colour-frame slices vary by "
+          f"{min(sp_cm.values()):.1f}-{max(sp_cm.values()):.1f}%, "
+          f"lab slices by {min(sp_lab.values()):.1f}-{max(sp_lab.values()):.1f}%")
     ylim = fig_fan(jets, args.outdir)
     fig_collapse(jets, args.outdir, ylim=ylim)
     fig_boost_factor(jets, args.outdir, ylim=ylim)

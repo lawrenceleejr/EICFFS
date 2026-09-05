@@ -185,7 +185,9 @@ into the γ\*p and Breit frames, and writes a per-jet TTree `jets` (W, Q², x, y
 |p|_lab, p_T, η, |p|_cm, Breit-frame p_z, current-hemisphere flag, N_const,
 N_charged, n₉₀ in the lab, n₉₀ from the same constituents in the γ\*p frame,
 charged-only n₉₀, leading-constituent z, ΔR to the struck parton) plus a
-per-event TTree `events` and the following histograms (current jets only):
+per-event TTree `events`, a TTree `cmjets` of jets clustered *in the colour
+rest frame* with an angular (e⁺e⁻) anti-*k*_T algorithm (`--cm-radius`), and
+the following histograms (current jets only):
 
 | Histogram | Axes | Observable |
 |-----------|------|-----------|
@@ -205,7 +207,11 @@ following Tufte: range frames, direct labels, no grids or legends.
 
 | File | Content |
 |------|---------|
-| `ffs_fan.pdf` | **Primary result**: ⟨n₉₀⟩ vs \|p\|_lab, one line per *W* slice |
+| `flat_cmjets.pdf` | **Primary result**: ⟨n₉₀⟩ of colour-frame jets vs *p*_T^lab, sliced in *E*_cm — flat |
+| `flat_labjets.pdf` | the same test for lab jets — the slices collapse and rise, spanning 85 % |
+| `universal_cm.pdf` | ⟨n₉₀⟩ vs *E*_cm sliced in *p*_T^lab — one curve |
+| `pt_fan.pdf` | lab jets vs *p*_T^lab sliced in *W* — the fan nearly closes |
+| `ffs_fan.pdf` | ⟨n₉₀⟩ vs \|p\|_lab: ⟨n₉₀⟩ vs \|p\|_lab, one line per *W* slice |
 | `ffs_boost_factor.pdf` | ⟨n₉₀⟩ vs \|p\|_lab / \|p\|_cm: the same colour-frame jet under different boosts |
 | `ffs_collapse.pdf` | ⟨n₉₀⟩ vs \|p\|_cm on the fan's scale: the *W* slices agree and are nearly flat |
 | `ffs_ratio.pdf` | ⟨n₉₀⟩ relative to the *W* = 10–15 GeV slice — size of the shift |
@@ -216,8 +222,8 @@ following Tufte: range frames, direct labels, no grids or legends.
 | `boost_map.pdf` | rapidity of the colour rest frame across (x, Q²), iso-*W* lines, the jets |
 | `plateau.pdf` | charged-hadron rapidity plateau in the γ\*p frame per *W* slice |
 
-![fan](figures/ffs_fan.png)
-![boost factor](figures/ffs_boost_factor.png)
+![colour-frame jets are flat](figures/flat_cmjets.png)
+![lab jets are not](figures/flat_labjets.png)
 
 ### `make_plots.py` (legacy)
 

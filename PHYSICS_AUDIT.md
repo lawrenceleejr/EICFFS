@@ -29,6 +29,7 @@ have measured the effect:
 | 8 | Moderate | Uncertainty on ⟨n₉₀⟩ taken as √(mean/N), a Poisson assumption that does not hold for a fractional, interpolated observable. | Fixed: standard error of the mean from the per-bin sample. |
 | 9 | Moderate | Only Q², W, x, y were stored per event, not q or k′, so no frame boost and no current-jet identification was possible downstream. | Fixed: q, k′, beam proton and struck parton four-vectors stored. |
 | 10 | Minor | All final-state e, μ removed from the hadronic final state, rather than the scattered lepton and its QED FSR photons. Removes Dalitz electrons; a collinear FSR photon could have formed a spurious "jet". | Fixed: removal by ancestry of the hard-process lepton; neutrinos removed. |
+| 12 | **Major** | ⟨n₉₀⟩ plotted against the jet's *total* lab momentum \|p\|_lab conflates momentum with angle: at fixed \|p\|, a higher-*W* jet is more central and therefore harder in *p*_T, and *p*_T is what sets how much radiation a fixed-*R* lab cone collects. Against *p*_T^lab the *W* slices differ by only a few percent (Sec. 3). | Fixed: lab-frame figures now use *p*_T^lab, and the frame test below replaces the \|p\|_lab fan as the primary result. |
 | 11 | Minor | The 200k-event default sample has median W ≈ 8 GeV; events with W > 30 GeV and a current jet are ~1 % of it, so the high-W bins that carry the effect would have been empty. | Fixed: generation-time `--Wmin`, eight parallel seeds. |
 
 Items already correct and verified: the n_x definition and its interpolation
@@ -60,67 +61,99 @@ The reported "efficiency" would have been ~4 %.  Reading the same particle from
 ## 3. What the corrected simulation shows
 
 Sample: Pythia 8.317, e(10 GeV) p(100 GeV), NC DIS Q² > 1 GeV², W > 10 GeV,
-2.4 M events (8 seeds × 300 k), anti-kT R = 0.4 in the lab, p_T > 2 GeV,
-|η| < 3.5, jet in the Breit current hemisphere: 291 k jets.
+2.4 M events (8 seeds × 300 k).  Two jet collections are built from the same
+events:
 
-**The effect is present and large.**  ⟨n₉₀⟩ at fixed lab-frame momentum rises
-monotonically with W over most of the phase space (`figures/ffs_fan.pdf`,
-`ffs_slopegraph.pdf`, `ffs_ratio.pdf`):
+* **Lab jets** — anti-kT R = 0.4 in the laboratory, p_T > 2 GeV, |η| < 3.5,
+  Breit current hemisphere: 291 k jets.
+* **Colour-frame jets** — every final-state particle boosted into the γ*p
+  frame and clustered there with FastJet's e⁺e⁻ generalised-kT (p = −1) at an
+  angular radius R = 0.4 rad, E > 1 GeV, current hemisphere: 4.05 M jets.
+  An angular algorithm is required because in that frame the struck quark lies
+  on the boson axis, where η–φ clustering is singular.
 
-| \|p\|_lab (GeV) | W = 10–15 | W = 32–45 | change |
-|---|---|---|---|
-| 2–3   | 1.25 | 1.69 | +35 % |
-| 4.5–7 | 1.58 | 2.44 | +54 % |
-| 7–10  | 1.76 | 3.09 | +76 % |
-| 10–15 | 1.99 | 3.57 | +79 % |
-| 15–22 | 2.29 | 4.19 | +83 % |
+### The test: which variable makes the curves flat?
 
-These are shifts of the same order as the 50 % quoted in the reference paper
-for 200 GeV jets, but for 5–20 GeV jets.
+If fragmentation is set in the colour rest frame, then labelling jets by their
+energy *in that frame* should make ⟨n₉₀⟩ independent of how hard the lab sees
+them — one flat line per label, the DIS analogue of the flat ⟨n₉₀⟩ of the ZZ
+jets in arXiv:2308.10951.  That is what happens, and only for the colour-frame
+jets (`figures/flat_cmjets.pdf`):
 
-**Within a W slice the colour-frame momentum is nearly fixed.**  For current
-jets |p|_cm / (W/2) has median 0.66 (16–84 %: 0.47–0.83), so a W slice is a
-sample of jets with essentially one colour-frame momentum seen under different
-boosts.  Plotted against the boost factor |p|_lab/|p|_cm
-(`ffs_boost_factor.pdf`) each slice rises steeply from ≈1.5 when the jet recoils
-against the frame's motion (backward jets, high y) to ≈3 when it is boosted
-forward with it.  Plotted against |p|_cm itself (`ffs_collapse.pdf`, same
-vertical scale as the fan) the slices agree with each other where they overlap
-and are nearly flat, 1.8 → 2.2 from 1 to 20 GeV.  A fit of
-log n₉₀ against log|p|_cm and log Q over all current jets gives exponents
-0.03 and 0.33 respectively.
+| E_cm (GeV) | p_T^lab ≈ 0.8 | 1.7 | 3.1 | 5.2 | 9.2 | spread |
+|---|---|---|---|---|---|---|
+| 4–6 | 2.30 | 2.33 | 2.37 | 2.40 | 2.37 | 3.9 % |
+| 6–9 | 2.79 | 2.82 | 2.89 | 2.93 | 2.92 | 5.3 % |
+| 9–14 | 3.40 | 3.42 | 3.50 | 3.56 | 3.64 | 6.7 % |
+| 14–22 | 4.17 | 4.12 | 4.15 | 4.24 | 4.24 | 2.8 % |
 
-Interpretation: n₉₀ computed from the same constituents after boosting them
-into the γ*p frame is indistinguishable from the lab value (correlation 0.993,
-means 1.927 vs 1.922), so the ordering step of the observable is frame-stable.
-The frame dependence enters through *which particles the fixed lab cone
-contains*: a jet boosted forward is compressed into R = 0.4 and the cone
-captures more of the string's current end; a jet recoiling against the frame's
-motion opens up and the cone loses particles (`ncon_boost_factor.pdf` shows
-⟨N_constituents⟩ following the same pattern).  This is the paper's point that a
-jet is not a factorisable object, realised at the EIC in a regime where jets
-have a median of two constituents and n₉₀ is a leading-hadron observable rather
-than a shower-multiplicity one.
+Across the six E_cm slices the residual variation over a factor of ten in lab
+transverse momentum is 2.8 % to 12.1 %, the largest values belonging to the
+lowest-energy slice where the jet is often a single hadron.  The same jets
+plotted against E_cm with lab-p_T slices overlaid fall on one curve
+(`universal_cm.pdf`).
 
-**W and Q both matter, and DIS separates them.**  In e⁺e⁻ the colour-frame
-energy and the shower scale coincide; in DIS they are W and Q.  At fixed
-|p|_lab = 4.5–10 GeV the (W, Q) table (`ffs_wq_table.pdf`) shows ⟨n₉₀⟩ rising
-with Q at fixed W in every column, and rising then falling with W at fixed Q.
-The turnover at W ≳ 40 GeV is the point where, at this beam energy, current jets
-of fixed lab momentum are backward-going (y > 0.5) and de-boosted.  The
-non-monotonic behaviour is visible in the full n₉₀ distribution as well
-(`ffs_distribution.pdf`), not only in the mean.
+The identical test on lab-clustered jets fails (`flat_labjets.pdf`).  Labelled
+by the same colour-frame momentum, the slices collapse onto each other and rise
+together with p_T^lab, spanning 41 % to 85 %:
 
-**Where in the EIC phase space.**  `boost_map.pdf` gives the analytic rapidity
-of the colour rest frame relative to the lab across the (x, Q²) plane with the
-selected jets overlaid; at 10 × 100 GeV it runs from y_cm ≈ 1.3 at W = 55 GeV to
-≈ 3 at W = 10 GeV, so lab jets of equal momentum are compared across frames
-differing by a factor e^{1.7} ≈ 5 in longitudinal boost.  `plateau.pdf` shows
-the charged-hadron rapidity plateau in the γ*p frame growing like ln W², the
-string whose current end the lab jet samples.
+| \|p\|_cm (GeV) | p_T^lab ≈ 2.2 | 3.6 | 5.7 | 9.0 | 11.4 | spread |
+|---|---|---|---|---|---|---|
+| 3.3–5 | 1.59 | 2.06 | 2.62 | 3.24 | — | 70 % |
+| 7.5–11 | 1.56 | 2.01 | 2.62 | 3.26 | 3.58 | 81 % |
+| 16–24 | 1.51 | 1.95 | 2.54 | 3.20 | 3.56 | 84 % |
+
+A lab-frame jet's measured fragmentation is therefore controlled by its lab
+transverse momentum and carries almost no memory of the colour rest frame,
+while the intrinsic fragmentation of the same events is controlled by the
+colour-frame energy and carries almost no memory of the lab.  This is the
+frame-dependent fragmentation shift at the EIC stated as a measurement rather
+than as an analogy.
+
+### Where the effect lives: clustering, not counting
+
+Computing n₉₀ from the *same* constituents but ordering them by lab momentum
+instead of colour-frame momentum changes almost nothing (E_cm = 2.5–4 GeV:
+1.87 → 1.80; E_cm = 9–14 GeV: 3.40 → 3.55).  The observable's ordering step is
+essentially frame-stable.  What differs between the two jet collections is
+*which particles end up in the jet*: a fixed lab cone gathers a boost-dependent
+slice of the colour string, so the lab jet is a different object, not the same
+object measured differently.
+
+### The W dependence at fixed lab momentum
+
+Against total \|p\|_lab the W slices fan out by 35–83 % (`ffs_fan.pdf`): at
+\|p\|_lab = 7–10 GeV, ⟨n₉₀⟩ goes from 1.76 at W = 10–15 GeV to 3.09 at
+W = 32–45 GeV.  Most of that is angle rather than frame.  At fixed p_T^lab the
+same slices differ by a few percent (`pt_fan.pdf`: 1.56 against 1.61 at
+p_T = 2–2.5 GeV).  A jet of fixed \|p\| in a higher-W event sits at smaller
+rapidity and therefore larger p_T, and p_T determines how much radiation an
+R = 0.4 lab cone collects.  The \|p\|_lab fan is a true statement about jets of
+equal lab momentum and is the direct transcription of the paper's e⁺e⁻
+comparison, but at the EIC it should be shown next to the p_T version so the
+angular part is visible rather than hidden.  The colour-frame test above is the
+cleaner claim.
+
+### Supporting observations
+
+* Within a W slice the current jet's colour-frame momentum is nearly fixed:
+  \|p\|_cm/(W/2) has median 0.66 (16–84 %: 0.47–0.83).
+* ⟨n₉₀⟩ of lab jets rises with the boost factor \|p\|_lab/\|p\|_cm from ≈1.5
+  to ≈3 (`ffs_boost_factor.pdf`), with ⟨N_constituents⟩ following.
+* The colour rest frame's rapidity relative to the lab runs from ≈3 at
+  W = 10 GeV to ≈1.3 at W = 55 GeV (`boost_map.pdf`); the charged-hadron
+  rapidity plateau in that frame grows like ln W² (`plateau.pdf`).
+* Slicing colour-frame jets by W rather than by E_cm does *not* flatten them.
+  W bounds the available energy; the jet's own colour-frame energy is what sets
+  its fragmentation.
 
 ### Caveats to carry into a paper
 
+* The angular radius used in the colour rest frame (0.4 rad) is a choice; the
+  flatness holds at 0.8 and 1.0 rad too, with larger ⟨n₉₀⟩ throughout.
+* Colour-frame jets are not directly measurable without the scattered lepton,
+  which fixes the boost.  The EIC detectors provide it, but the resolution on
+  that boost propagates into E_cm and has not been studied here.
 * Pythia only; the paper compared Pythia, Vincia and Herwig.  A Herwig 7 or
   Sherpa cross-check of the fan would strengthen the claim.  The framework's
   Parquet interface makes this a generator swap.
