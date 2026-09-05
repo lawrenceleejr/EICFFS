@@ -32,6 +32,7 @@ d ln⟨n₉₀⟩ / d ln|p|_lab across the three configurations:
 | γ*p-frame jet, from lab momenta | −0.001 | −0.430 |
 | whole current hemisphere, from colour-frame momenta | −0.008 | −0.007 |
 | γ*p-frame jet, from colour-frame momenta | +0.015 | +0.016 |
+| either object, in its own rest frame | — | −0.018 |
 
 n_SD is the iterated soft-drop multiplicity, an IRC-safe counting observable
 used here as a cross-check on n₉₀ (Sec. 3).  It gives the same answer where it
@@ -259,16 +260,56 @@ meaningless — the curve is not a power law, and the controlled test shows this
 is the *most* lab-sensitive of all the definitions tried.  A flat inclusive
 curve is not evidence of frame independence.
 
-### 3.4 Which to use
+### 3.4 Why n_SD responds so weakly to the physics
 
-For a measurement, n_SD computed in the colour rest frame is the best of both:
-IRC safe and frame independent to under two percent.  n₉₀ in the colour frame
-is equally frame independent and simpler to construct, at the cost of collinear
-unsafety, which matters for comparison to fixed-order or resummed calculations
-but not for a Monte Carlo comparison at hadron level.  n_SD computed in the
-laboratory should be avoided in this context.  Its mean is also small at EIC
-energies — 1.14 for the hemisphere at 10 × 100 — so its statistical reach is
-weaker than n₉₀'s.
+Two reasons, and the second is the important one.
+
+**It is a coarse counter at EIC multiplicities.**  The current hemisphere holds
+3.09 constituents on average — 20 % have one, 26 % have two — so there is
+almost no logarithmic phase space for a grooming counter.  ⟨n_SD⟩ = 0.92 with
+39 % of hemispheres giving exactly zero and 77 % giving zero or one, against
+⟨n₉₀⟩ = 2.21 with a standard deviation of 1.28 and a tail to 18.  n_SD is close
+to a binary variable here, so its statistical reach per event is poor.
+
+**What variation it does show is mostly the angular cut, not fragmentation.**
+Hold *Q* fixed at 3.3–5 GeV and slice in *W*:
+
+| *W* | ⟨N_const⟩ | ⟨n₉₀⟩ | ⟨n_SD⟩ γ*p frame | ⟨n_SD⟩ object rest frame |
+|---|---|---|---|---|
+| 10–15 | 3.85 | 2.685 | 1.651 | 0.970 |
+| 15–22 | 3.87 | 2.697 | 1.489 | 0.979 |
+| 22–32 | 3.84 | 2.678 | 1.235 | 0.969 |
+| 32–45 | 3.83 | 2.671 | 0.933 | 0.971 |
+| **change** | **−0.4 %** | **−0.5 %** | **−43.5 %** | **+0.1 %** |
+
+The hemisphere's particle content is *unchanged* across this range — that is the
+classic HERA result that current-region multiplicity is set by *Q*, not by *W* —
+and n₉₀ correctly reports nothing happening.  n_SD in the γ*p frame falls by
+43 % anyway.  The reason is that the γ*p frame is the rest frame of the *whole*
+hadronic system, but the current hemisphere still moves within it, with energy
+≈ *W*/2 along the boson axis.  As *W* grows the same particles are collimated
+into smaller opening angles, they fall below θ_cut = 0.1 rad, and the branchings
+stop being counted.
+
+Boosting into the object's own rest frame before applying the cut removes this
+entirely: +0.1 % across the same range, and −0.018 on the beam-energy ladder.
+The lesson generalises: **an absolute angular cut inherits whatever boost the
+object has in the frame where the cut is applied**, and identifying the colour
+rest frame of the event is not sufficient — the object of interest must also be
+at rest.
+
+### 3.5 Which to use
+
+For a measurement, n_SD computed in the object's own rest frame is the best of
+both: IRC safe, and frame independent to under two percent across beam energies
+and to 0.1 % against *W* at fixed *Q*.  n_SD in the γ*p frame is not enough, and
+in the laboratory it should be avoided.  n₉₀ in the colour frame is equally
+frame independent and simpler to construct, at the cost of collinear unsafety,
+which matters for comparison to fixed-order or resummed calculations but not for
+a Monte Carlo comparison at hadron level.  Whichever variant is chosen, n_SD is
+small at EIC energies — 0.68 in the object rest frame, with 55 % of hemispheres
+giving zero — so n₉₀ carries more information per event despite being collinear
+unsafe.
 
 ---
 
