@@ -9,7 +9,9 @@ finds anti-kT R = 0.4 jets in the laboratory frame, and writes
     quantities and the n₉₀ observable,
   * a per-jet TTree ``cmjets`` for jets clustered *in the colour rest frame*
     with an angular (e+e-) anti-kT algorithm, carrying the jet's energy in
-    that frame and its momentum back in the lab, and
+    that frame and its momentum back in the lab,
+  * reduced trees ``jets_R0p8``, ``jets_R1p2``, ``jets_R1p6`` for larger lab
+    radii and ``hemisphere`` for the whole Breit current hemisphere, and
   * a per-event TTree ``events``, and
   * the legacy histograms used by make_plots.py (filled with current jets),
 
@@ -83,6 +85,10 @@ CHUNK = 20_000       # events per processing chunk
 # (e+e-) algorithm is used and R is a half-angle in radians.
 CM_R = 0.4
 CM_E_MIN = 1.0       # GeV, minimum jet energy in the colour rest frame
+
+# Additional lab-frame radii, written to trees jets_R0p8 etc. with a reduced
+# column set, to test whether a larger cone changes the frame dependence.
+EXTRA_LAB_RADII = (0.8, 1.2, 1.6)
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +314,71 @@ def _vec4(rec):
                      ak.to_numpy(rec.pz), ak.to_numpy(rec.e)], axis=1).astype(float)
 
 
+def lab_jets_at_radius(parts, charge, R, L_hcm, L_breit, qhat_breit, n_ev,
+                       W, Q2, use_fastjet=True):
+    """
+    Lab-frame anti-kT jets at radius R with the frame quantities needed for the
+    flatness test: colour-frame energy, Breit-hemisphere flag and n₉₀.
+    Returns a dict of flat arrays (reduced column set).
+    """
+    if use_fastjet:
+        jets, cidx = cluster_fastjet(parts, R=R)
+    else:
+        jets, cidx = cluster_cone(parts, R=R)
+    keep = abs(jets.eta) < JET_ETA_MAX
+    jets, cidx = jets[keep], cidx[keep]
+    n_jets = ak.to_numpy(ak.num(jets))
+    ev_of_jet = np.repeat(np.arange(n_ev), n_jets)
+    J = np.stack([ak.to_numpy(ak.flatten(jets[c])) for c in ("px", "py", "pz", "E")], axis=1)
+    n_j = len(J)
+    J_hcm = np.einsum("nij,nj->ni", L_hcm[ev_of_jet], J)
+    J_breit = np.einsum("nij,nj->ni", L_breit[ev_of_jet], J)
+    current = np.einsum("ni,ni->n", J_breit[:, :3], qhat_breit[ev_of_jet]) > 0
+
+    flat_idx = ak.flatten(cidx, axis=2)
+    per_jet = ak.flatten(ak.num(cidx, axis=2))
+    consts = ak.unflatten(parts[flat_idx], per_jet, axis=1)
+    cch = ak.unflatten(charge[flat_idx], per_jet, axis=1)
+    c_flat = ak.flatten(consts, axis=1)
+    n_const = ak.to_numpy(ak.num(c_flat))
+    n_charged = ak.to_numpy(ak.sum(ak.flatten(cch, axis=1) != 0, axis=1))
+    jet_of_c = np.repeat(np.arange(n_j), n_const)
+    c_p = np.sqrt(ak.to_numpy(ak.flatten(c_flat.px))**2 + ak.to_numpy(ak.flatten(c_flat.py))**2
+                  + ak.to_numpy(ak.flatten(c_flat.pz))**2)
+    return {
+        "W": W[ev_of_jet], "Q2": Q2[ev_of_jet],
+        "pt": np.hypot(J[:, 0], J[:, 1]), "plab": np.linalg.norm(J[:, :3], axis=1),
+        "eta": np.arcsinh(J[:, 2] / np.maximum(np.hypot(J[:, 0], J[:, 1]), 1e-9)),
+        "e_hcm": J_hcm[:, 3], "p_hcm": np.linalg.norm(J_hcm[:, :3], axis=1),
+        "current": current, "n_const": n_const.astype(np.int32),
+        "n_charged": n_charged.astype(np.int32),
+        "n90": n_x_segments(c_p, jet_of_c, n_j),
+    }
+
+
+def current_hemisphere(A, A_cm, A_breit, qhat_breit, ev_of_par, charge_flat, n_ev, W, Q2):
+    """
+    The whole Breit current hemisphere of each event treated as one object: the
+    limiting case of a lab jet with infinite radius.  A is the lab four-vector
+    array of all particles, A_cm the same in the γ*p frame, A_breit in the Breit
+    frame.
+    """
+    cur = np.einsum("ni,ni->n", A_breit[:, :3], qhat_breit[ev_of_par]) > 0
+    H = np.zeros((n_ev, 4))
+    np.add.at(H, ev_of_par[cur], A[cur])
+    H_cm = np.zeros((n_ev, 4))
+    np.add.at(H_cm, ev_of_par[cur], A_cm[cur])
+    return {
+        "W": W, "Q2": Q2,
+        "pt": np.hypot(H[:, 0], H[:, 1]), "plab": np.linalg.norm(H[:, :3], axis=1),
+        "e_hcm": H_cm[:, 3],
+        "n_const": np.bincount(ev_of_par[cur], minlength=n_ev).astype(np.int32),
+        "n_charged": np.bincount(ev_of_par[cur & (charge_flat != 0)], minlength=n_ev).astype(np.int32),
+        "n90": n_x_segments(np.linalg.norm(A[cur][:, :3], axis=1), ev_of_par[cur], n_ev),
+        "n90_cm": n_x_segments(np.linalg.norm(A_cm[cur][:, :3], axis=1), ev_of_par[cur], n_ev),
+    }
+
+
 def analyze_chunk(events, use_fastjet=True):
     """Return (event_dict, jet_dict) of flat numpy arrays for one chunk."""
     n_ev = len(events)
@@ -481,7 +552,16 @@ def analyze_chunk(events, use_fastjet=True):
         "dR_parton": dR_parton, "dphi_lepton": dphi_lepton,
     }
     ev_out["n_cm_jets"] = n_cj_ev.astype(np.int32)
-    return ev_out, jet_out, cj_out
+
+    # ── Larger lab radii and the whole current hemisphere ─────────────────
+    extra = {}
+    for R_extra in EXTRA_LAB_RADII:
+        extra[f"jets_R{R_extra:.1f}".replace(".", "p")] = lab_jets_at_radius(
+            parts, charge, R_extra, L_hcm, L_breit, qhat_breit, n_ev, W, Q2, use_fastjet)
+    A_breit = np.einsum("nij,nj->ni", L_breit[ev_of_par], A)
+    extra["hemisphere"] = current_hemisphere(
+        A, A_cm, A_breit, qhat_breit, ev_of_par, ak.to_numpy(ak.flatten(charge)), n_ev, W, Q2)
+    return ev_out, jet_out, cj_out, extra
 
 
 # ---------------------------------------------------------------------------
@@ -496,6 +576,7 @@ def analyze(args):
         files.extend(sorted(glob.glob(pattern)) or [pattern])
     hists = make_histograms()
     ev_parts, jet_parts, cj_parts = [], [], []
+    extra_parts = {}
     t0 = time.time()
     n_done = 0
 
@@ -505,11 +586,13 @@ def analyze(args):
         print(f"{fname}: {n:,} events", flush=True)
         for start in range(0, n, CHUNK):
             chunk = events[start:start + CHUNK]
-            ev_out, jet_out, cj_out = analyze_chunk(chunk, use_fastjet=not args.no_fastjet)
+            ev_out, jet_out, cj_out, extra = analyze_chunk(chunk, use_fastjet=not args.no_fastjet)
             fill_legacy(hists, ev_out, jet_out)
             ev_parts.append(ev_out)
             jet_parts.append(jet_out)
             cj_parts.append(cj_out)
+            for name, part in extra.items():
+                extra_parts.setdefault(name, []).append(part)
             n_done += len(chunk)
             rate = n_done / (time.time() - t0)
             print(f"  {n_done:>9,} events   {len(jet_out['W']):>7,} jets in chunk   "
@@ -518,6 +601,8 @@ def analyze(args):
     ev_all = {k: np.concatenate([p[k] for p in ev_parts]) for k in ev_parts[0]}
     jet_all = {k: np.concatenate([p[k] for p in jet_parts]) for k in jet_parts[0]}
     cj_all = {k: np.concatenate([p[k] for p in cj_parts]) for k in cj_parts[0]}
+    extra_all = {name: {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
+                 for name, parts in extra_parts.items()}
 
     n_ev = len(ev_all["W"])
     n_jet = len(jet_all["W"])
@@ -533,6 +618,8 @@ def analyze(args):
     with uproot.recreate(args.output) as f:
         f["jets"] = jet_all
         f["cmjets"] = cj_all
+        for name, tree in extra_all.items():
+            f[name] = tree
         f["events"] = ev_all
         for name, h in hists.items():
             f[name] = h
