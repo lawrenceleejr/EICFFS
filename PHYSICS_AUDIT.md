@@ -1,337 +1,274 @@
-# Physics audit of the EICFFS framework
+# Fragmentation does not know about the laboratory: a beam-energy test at the EIC
 
-*Audit of the code as merged in PR #1, the fixes applied on this branch, what the
-corrected simulation shows, and whether this study has been proposed for the EIC
-before.  Reference: L. Lee, C. Bell, J. Lawless, C. Nash, E. Nibigira,
-"Experimental impact of jet fragmentation reference frames at particle colliders",
-Phys. Lett. B 866 (2025) 139561, [arXiv:2308.10951](https://arxiv.org/abs/2308.10951).*
-
----
-
-## 1. Summary
-
-The framework's premise is sound: in neutral-current DIS the colour-connected
-system is the whole hadronic final state, with four-momentum P + q and invariant
-mass W, so its rest frame (the γ*p or hadronic centre-of-mass frame) is the
-"colour rest frame" of the reference paper, and W is the DIS analogue of m_Z in
-the paper's ZZ → 4j example.  The original implementation, however, could not
-have measured the effect:
-
-| # | Severity | Finding | Status |
-|---|----------|---------|--------|
-| 1 | **Blocking** | Hard-process lepton looked up with `status == 23` in `pythia.event`; the shower copies it, so the record carries `−23` in ~96 % of events. Those events were silently dropped and the surviving 4 % (no lepton FSR/recoil) are a biased subset. | Fixed: read `pythia.process`. 100 % of events now pass. |
-| 2 | **Major** | Lepton-beam ISR left on (Pythia default `PDF:lepton = on`). The stored q = k_beam − k′ then includes the ISR photon and is not the exchanged boson; W, Q², x, y are all mis-reconstructed for radiative events. | Fixed: `PDF:lepton = off` (standard for EIC studies); `--lepton-isr` restores it. |
-| 3 | **Major** | The Breit frame and the γ*p CM frame were conflated in the README and docstrings ("Breit/γ*p frame"). They differ by a boost along the boson axis; the struck quark carries Q/2 in the Breit frame but W/2 in the γ*p frame. Only the latter is the colour rest frame. | Fixed in code and text; both boosts are now computed and stored per jet. |
-| 4 | **Major** | Sign of the predicted effect stated backwards in `analyze_events.py` ("higher W → lower CM-frame momentum → fewer particles"). The colour rest frame moves forward with rapidity y_cm that *decreases* with W, so at fixed lab momentum a higher-W jet is *harder* in that frame and has *more* particles. | Fixed; confirmed by the simulation (Sec. 3). |
-| 5 | **Major** | All jets were used, including proton-remnant fragments at forward rapidity, which have nothing to do with the struck quark's fragmentation. | Fixed: jets are flagged by Breit-frame hemisphere; the figures use current-hemisphere jets. |
-| 6 | Moderate | FastJet was installed but never used by default: `run.sh` and `docker-compose.yml` never passed `--use-fastjet`, so the greedy cone fallback was the production algorithm. | Fixed: anti-kT via FastJet is the default (`--no-fastjet` to opt out). |
-| 7 | Moderate | No `SpaceShower:dipoleRecoil = on`, the Pythia-recommended ISR recoil scheme for DIS; an arbitrary `SpaceShower:rapidityOrder = off` was set instead. | Fixed: dipole recoil on, rapidity ordering back to default. |
-| 8 | Moderate | Uncertainty on ⟨n₉₀⟩ taken as √(mean/N), a Poisson assumption that does not hold for a fractional, interpolated observable. | Fixed: standard error of the mean from the per-bin sample. |
-| 9 | Moderate | Only Q², W, x, y were stored per event, not q or k′, so no frame boost and no current-jet identification was possible downstream. | Fixed: q, k′, beam proton and struck parton four-vectors stored. |
-| 10 | Minor | All final-state e, μ removed from the hadronic final state, rather than the scattered lepton and its QED FSR photons. Removes Dalitz electrons; a collinear FSR photon could have formed a spurious "jet". | Fixed: removal by ancestry of the hard-process lepton; neutrinos removed. |
-| 12 | **Major** | ⟨n₉₀⟩ plotted against the jet's *total* lab momentum \|p\|_lab conflates momentum with angle: at fixed \|p\|, a higher-*W* jet is more central and therefore harder in *p*_T, and *p*_T is what sets how much radiation a fixed-*R* lab cone collects. Against *p*_T^lab the *W* slices differ by only a few percent (Sec. 3). | Fixed: lab-frame figures now use *p*_T^lab, and the frame test below replaces the \|p\|_lab fan as the primary result. |
-| 11 | Minor | The 200k-event default sample has median W ≈ 8 GeV; events with W > 30 GeV and a current jet are ~1 % of it, so the high-W bins that carry the effect would have been empty. | Fixed: generation-time `--Wmin`, eight parallel seeds. |
-
-Items already correct and verified: the n_x definition and its interpolation
-match arXiv:2308.10951 Sec. 2 (vectorised version agrees with the scalar one to
-1e-11); the Lorentz-boost formula; the Breit-frame construction (q + 2xP at
-rest, boson energy exactly zero, |q| = Q); the DIS invariants (W reproduced by
-the stored hadronic final state to 0.03 GeV on average, the residual being
-neutrinos from heavy-flavour decays).
+*Study note for the EICFFS framework.  Motivated by L. Lee, C. Bell, J. Lawless,
+C. Nash, E. Nibigira, "Experimental impact of jet fragmentation reference frames
+at particle colliders", Phys. Lett. B 866 (2025) 139561,
+[arXiv:2308.10951](https://arxiv.org/abs/2308.10951).*
 
 ---
 
-## 2. Details of the blocking finding
+## Summary
 
-A 300-event test with the original generator settings:
+Jet fragmentation happens in the rest frame of the colour-connected system, not
+in the laboratory.  In neutral-current DIS that system is the whole hadronic
+final state, of invariant mass *W*, and its rest frame is the γ*p frame.  The
+claim is testable at the EIC in a way that no e⁺e⁻ measurement can match,
+because the accelerator itself provides the boost.
 
-```
-electron status counts: {-12: 300, -21: 300, -23: 288, 23: 12}
-```
+At fixed (*W*, *Q*) the colour-frame physics is fixed.  Changing the beam
+energies then changes *only* the laboratory frame.  Comparing the 5 × 41,
+10 × 100 and 18 × 275 GeV configurations moves the same colour-singlet system
+through laboratory momenta differing by up to a factor of seven.  If
+fragmentation is a property of the colour rest frame, ⟨n₉₀⟩ must not move.
 
-In `pythia.event` the hard-process lepton has status −23 whenever the shower
-makes a copy of it (QED FSR or recoil), i.e. in 288 of 300 events; the original
-`extract_kinematics` returned `None` for those and the event loop `continue`d.
-The reported "efficiency" would have been ~4 %.  Reading the same particle from
-`pythia.process` (status +23 always) gives 100 % of events and, with
-`PDF:lepton = off`, an exact q = k − k′.
+It does not.  Measuring the lab-frame dependence as the exponent
+d ln⟨n₉₀⟩ / d ln|p|_lab across the three configurations:
 
----
-
-## 3. What the corrected simulation shows
-
-Sample: Pythia 8.317, e(10 GeV) p(100 GeV), NC DIS Q² > 1 GeV², W > 10 GeV,
-2.4 M events (8 seeds × 300 k).  Two jet collections are built from the same
-events:
-
-* **Lab jets** — anti-kT R = 0.4 in the laboratory, p_T > 2 GeV, |η| < 3.5,
-  Breit current hemisphere: 291 k jets.
-* **Colour-frame jets** — every final-state particle boosted into the γ*p
-  frame and clustered there with FastJet's e⁺e⁻ generalised-kT (p = −1) at an
-  angular radius R = 0.4 rad, E > 1 GeV, current hemisphere: 4.05 M jets.
-  An angular algorithm is required because in that frame the struck quark lies
-  on the boson axis, where η–φ clustering is singular.
-
-### The test: which variable makes the curves flat?
-
-If fragmentation is set in the colour rest frame, then labelling jets by their
-energy *in that frame* should make ⟨n₉₀⟩ independent of how hard the lab sees
-them — one flat line per label, the DIS analogue of the flat ⟨n₉₀⟩ of the ZZ
-jets in arXiv:2308.10951.  That is what happens, and only for the colour-frame
-jets (`figures/flat_cmjets.pdf`):
-
-| E_cm (GeV) | p_T^lab ≈ 0.8 | 1.7 | 3.1 | 5.2 | 9.2 | spread |
-|---|---|---|---|---|---|---|
-| 4–6 | 2.30 | 2.33 | 2.37 | 2.40 | 2.37 | 3.9 % |
-| 6–9 | 2.79 | 2.82 | 2.89 | 2.93 | 2.92 | 5.3 % |
-| 9–14 | 3.40 | 3.42 | 3.50 | 3.56 | 3.64 | 6.7 % |
-| 14–22 | 4.17 | 4.12 | 4.15 | 4.24 | 4.24 | 2.8 % |
-
-Across the six E_cm slices the residual variation over a factor of ten in lab
-transverse momentum is 2.8 % to 12.1 %, the largest values belonging to the
-lowest-energy slice where the jet is often a single hadron.  The same jets
-plotted against E_cm with lab-p_T slices overlaid fall on one curve
-(`universal_cm.pdf`).
-
-The identical test on lab-clustered jets fails (`flat_labjets.pdf`).  Labelled
-by the same colour-frame momentum, the slices collapse onto each other and rise
-together with p_T^lab, spanning 41 % to 85 %:
-
-| \|p\|_cm (GeV) | p_T^lab ≈ 2.2 | 3.6 | 5.7 | 9.0 | 11.4 | spread |
-|---|---|---|---|---|---|---|
-| 3.3–5 | 1.59 | 2.06 | 2.62 | 3.24 | — | 70 % |
-| 7.5–11 | 1.56 | 2.01 | 2.62 | 3.26 | 3.58 | 81 % |
-| 16–24 | 1.51 | 1.95 | 2.54 | 3.20 | 3.56 | 84 % |
-
-A lab-frame jet's measured fragmentation is therefore controlled by its lab
-transverse momentum and carries almost no memory of the colour rest frame,
-while the intrinsic fragmentation of the same events is controlled by the
-colour-frame energy and carries almost no memory of the lab.  This is the
-frame-dependent fragmentation shift at the EIC stated as a measurement rather
-than as an analogy.
-
-### Where the effect lives: clustering, not counting
-
-Computing n₉₀ from the *same* constituents but ordering them by lab momentum
-instead of colour-frame momentum changes almost nothing (E_cm = 2.5–4 GeV:
-1.87 → 1.80; E_cm = 9–14 GeV: 3.40 → 3.55).  The observable's ordering step is
-essentially frame-stable.  What differs between the two jet collections is
-*which particles end up in the jet*: a fixed lab cone gathers a boost-dependent
-slice of the colour string, so the lab jet is a different object, not the same
-object measured differently.
-
-### Can a lab-frame jet be made flat?
-
-The colour-frame clustering above changes two things at once: the frame the
-observable is computed in, and which particles the jet contains.  Separating
-them answers a practical question — can the same flatness be reached with
-lab-frame clustering, by widening the cone and controlling Q?
-
-*Widening the cone alone does not work.*  Slicing in colour-frame energy and
-plotting against lab p_T, the spread of the E_cm = 9–14 GeV slice is 88 % at
-R = 0.4, 78 % at R = 0.8, 73 % at R = 1.2, 72 % at R = 1.6 and 74 % for the
-whole current hemisphere.  Removing the out-of-cone loss changes almost
-nothing, because the dominant variable is still Q: lab p_T at fixed E_cm is
-close to a measurement of Q (correlation 0.80 in the logs), and the shower
-opens up with Q.
-
-*Controlling Q is necessary but not sufficient.*  With Q and E_cm both held
-fixed, an R = 0.4 lab jet still climbs by 44 % over p_T^lab = 1.9–7.3 GeV.
-Fitting a power law to the residual dependence, d ln⟨n₉₀⟩/d ln p_T^lab
-(`figures/slope_vs_radius.pdf`):
-
-| lab jet definition | residual slope |
+| what is measured | median exponent |
 |---|---|
-| anti-kT R = 0.4 | +0.41 |
-| R = 0.8 | +0.40 |
-| R = 1.2 | +0.38 |
-| R = 1.6 | +0.35 |
-| R = 2.4 | +0.27 |
-| whole Breit current hemisphere | +0.06 |
+| all hemispheres, one beam energy, no control | **+0.277** |
+| leading anti-kT *R* = 0.4 lab jet, fixed (*W*, *Q*) | +0.038 |
+| whole current hemisphere, n₉₀ from lab momenta | −0.050 |
+| γ*p-frame jet, n₉₀ from lab momenta | −0.001 |
+| whole current hemisphere, n₉₀ from colour-frame momenta | −0.008 |
+| γ*p-frame jet, n₉₀ from colour-frame momenta | +0.015 |
 
-*Both together do work.*  With Q fixed and the whole current system taken as
-the jet, the curves go flat: 8.7 % median spread against 43.7 % for R = 0.4
-on the same events, the same p_T range and the same logarithmic vertical span
-(`fixed_q_hemisphere.pdf` against `fixed_q_R04.pdf`).
+The steep inclusive slope is not fragmentation responding to the laboratory.
+It is the (*W*, *Q*) content of the sample changing along the axis.  Once the
+colour-frame kinematics are held fixed and the observable is defined in that
+frame, the residual dependence on a factor of seven in laboratory momentum is
+consistent with zero (`figures/frame_ladder.pdf`).
 
-The mechanism is visible directly in the fraction of the current system each
-cone holds (`capture_fraction.pdf`).  At R = 0.4 the leading current jet
-carries 0.60 of the hemisphere's lab momentum at p_T = 2 GeV and 1.05 at
-p_T = 8 GeV; at R = 1.6 it runs from 0.81 to 1.39, above unity because the
-cone starts sweeping in the target side as well.  A fixed lab cone does not
-hold a fixed piece of the shower, and n₉₀ tracks the piece it holds.  The
-hemisphere is compact in the lab — the radius containing 90 % of its momentum
-has median 0.39 and reaches only 0.76 in the highest W slice — so the problem
-is not that the shower is spread over a huge area, but that a cone selects by
-lab p_T while the shower is organised in another frame.
-
-Practical consequence for a measurement: the observable to use at the EIC is
-the current hemisphere of the Breit frame, or equivalently a jet defined in the
-γ*p frame, binned in both the colour-frame energy and Q.  Conventional
-lab-frame jets of any usable radius carry a residual boost dependence of about
-0.3 to 0.4 in the exponent.
-
-### The clean test: change the lab frame, keep the physics
-
-Within one beam configuration the lab frame is a deterministic function of the
-DIS kinematics, so once the colour-frame variables are fixed nothing is left
-to vary.  The independent knob is the beam energy.  At the same (W, Q) the
-EIC's 5 × 41, 10 × 100 and 18 × 275 GeV configurations put identical
-colour-frame physics into three different lab frames; the current
-hemisphere's lab momentum changes by up to a factor of ten.  If fragmentation
-does not care about the lab frame, ⟨n₉₀⟩ computed from lab momenta must be
-the same in all three.  Samples: 1.2 M events each at 5 × 41 and 18 × 275
-(W > 10 GeV), against the 2.4 M at 10 × 100; cells W ∈ {10–15, 15–22, 22–28}
-× Q ∈ {2.2–3.3, 3.3–5, 5–7.5} GeV with at least 400 entries per beam.
-
-Slope d ln⟨n₉₀⟩ / d ln|p|_lab across the three beam configurations, per cell:
-
-| object | cells | median slope | range |
-|---|---|---|---|
-| whole Breit current hemisphere, lab n₉₀ | 9 | −0.05 | −0.13 to 0.00 |
-| leading anti-kT R = 0.4 lab jet | 8 | +0.04 | 0.00 to +0.14 |
-| γ*p-frame jet (0.4 rad), n₉₀ from lab momenta, fixed (E_cm, Q) | 15 | 0.00 | −0.01 to +0.02 |
-| inclusive hemisphere at 10 × 100, for comparison | — | ≈ +0.25 | — |
-
-`figures/beam_energy_hemisphere.pdf` shows the flat lines lying across the
-inclusive curve; `beam_energy_cmjet.pdf` is the cleanest statement of frame
-independence, every cell flat to two percent in the exponent;
-`beam_energy_labjet.pdf` shows the lab cone breaking away in the lowest-energy
-configuration for the higher-Q cells.  The hemisphere's slight negative slope
-comes from the W = 22–28 GeV cells at 5 × 41, where W is at the edge of the
-available phase space (W_max ≈ 28.6 GeV, y → 1) and the current hemisphere
-is going backward in the lab.
-
-This is the measurement the EIC can make that e⁺e⁻ cannot: the same
-colour-singlet system observed in three lab frames, with the boost changed by
-the accelerator rather than by the event.
-
-### The whole current hemisphere against full lab momentum
-
-The most direct version of the test asks for the whole current system, every
-quantity measured in the lab, sliced in colour-frame energy and plotted
-against full lab momentum |p|_lab rather than p_T.  The answer is not flat,
-and the reason is kinematic rather than a property of jets
-(`figures/hemisphere_vs_p.pdf`).
-
-Inclusively, ⟨n₉₀⟩ of the current hemisphere rises from 1.6 to 4.5 between
-|p|_lab = 1 and 60 GeV.  Sliced in E_cm the lines do not flatten: median
-spread 90 %.  Along any slice the median Q rises with |p|_lab (from 2.0 to
-12 GeV for the E_cm = 4–6 GeV slice), and the correlation between log|p|_lab
-and log Q at fixed E_cm is 0.80.
-
-This is not an accident of the sample.  DIS has two kinematic degrees of
-freedom.  At leading order the current hemisphere carries E_cm ≈ W/2, so
-fixing E_cm fixes W, and the boost of the γ*p frame into the lab is then a
-function of Q alone: at W = 15–22 GeV the hemisphere's median |p|_lab runs
-2.1, 4.2, 9.0, 17.4 GeV for Q = 2.2–3.3, 3.3–5, 5–7.5, 7.5–11 GeV, with a
-16–84 % spread of only a factor of about two inside each cell
-(`hemisphere_p_vs_q.pdf`).  For the whole current system the EIC has no boost
-knob independent of the hard scale; a lab-momentum scan at fixed colour-frame
-energy *is* a Q scan.  This is the essential difference from e⁺e⁻ → ZZ, where
-the Z boost varies independently of m_Z.
-
-Fixing Q as well recovers most of the flatness (`hemisphere_vs_p_fixed_q.pdf`,
-Q = 5–7.5 GeV, median spread 14 %).  The slices carrying most of the current
-system's energy are flat to a few percent; the low-E_cm slices keep a residual
-rise, because within a fixed (E_cm, Q) cell the remaining variable is the share
-of W the hemisphere carries.
-
-Where an independent lever does exist is below the hemisphere level: a narrow
-jet clustered in the γ*p frame can sit at any angle θ* to the boost axis, so
-its lab momentum varies at fixed (E_cm, Q).  Those jets are the ones that
-collapse to 4–13 % (previous section), and they are nearly Q-blind
-(8–10 % across Q at fixed E_cm) because the Q-dependent wide-angle radiation
-falls outside a 0.4 rad cone.
-
-### The W dependence at fixed lab momentum
-
-Against total \|p\|_lab the W slices fan out by 35–83 % (`ffs_fan.pdf`): at
-\|p\|_lab = 7–10 GeV, ⟨n₉₀⟩ goes from 1.76 at W = 10–15 GeV to 3.09 at
-W = 32–45 GeV.  Most of that is angle rather than frame.  At fixed p_T^lab the
-same slices differ by a few percent (`pt_fan.pdf`: 1.56 against 1.61 at
-p_T = 2–2.5 GeV).  A jet of fixed \|p\| in a higher-W event sits at smaller
-rapidity and therefore larger p_T, and p_T determines how much radiation an
-R = 0.4 lab cone collects.  The \|p\|_lab fan is a true statement about jets of
-equal lab momentum and is the direct transcription of the paper's e⁺e⁻
-comparison, but at the EIC it should be shown next to the p_T version so the
-angular part is visible rather than hidden.  The colour-frame test above is the
-cleaner claim.
-
-### Supporting observations
-
-* Within a W slice the current jet's colour-frame momentum is nearly fixed:
-  \|p\|_cm/(W/2) has median 0.66 (16–84 %: 0.47–0.83).
-* ⟨n₉₀⟩ of lab jets rises with the boost factor \|p\|_lab/\|p\|_cm from ≈1.5
-  to ≈3 (`ffs_boost_factor.pdf`), with ⟨N_constituents⟩ following.
-* The colour rest frame's rapidity relative to the lab runs from ≈3 at
-  W = 10 GeV to ≈1.3 at W = 55 GeV (`boost_map.pdf`); the charged-hadron
-  rapidity plateau in that frame grows like ln W² (`plateau.pdf`).
-* Slicing colour-frame jets by W rather than by E_cm does *not* flatten them.
-  W bounds the available energy; the jet's own colour-frame energy is what sets
-  its fragmentation.
-
-### Caveats to carry into a paper
-
-* The residual slope of +0.06 for the hemisphere is not exactly zero, and the
-  lowest E_cm slices remain the least flat; part of this is the p_T > 1 GeV
-  requirement biasing the low-E_cm sample.
-* The angular radius used in the colour rest frame (0.4 rad) is a choice; the
-  flatness holds at 0.8 and 1.0 rad too, with larger ⟨n₉₀⟩ throughout.
-* Colour-frame jets are not directly measurable without the scattered lepton,
-  which fixes the boost.  The EIC detectors provide it, but the resolution on
-  that boost propagates into E_cm and has not been studied here.
-* Pythia only; the paper compared Pythia, Vincia and Herwig.  A Herwig 7 or
-  Sherpa cross-check of the fan would strengthen the claim.  The framework's
-  Parquet interface makes this a generator swap.
-* Q² > 1 GeV² includes a region where the "current jet" with p_T > 2 GeV comes
-  from O(α_s) boson–gluon fusion and QCD Compton; the colour rest frame is
-  still the γ*p frame (everything is one colour-singlet system), but the jet
-  is not the LO struck quark.  Cutting at Q² > 5 GeV² or requiring a parton
-  match (`dR_parton` is stored) isolates the Born-like sample.
-* Backward jets (η < −1) at high W sit in the electron-endcap region; a
-  detector-level study needs the ePIC tracking and calorimeter acceptance there.
-* The jet radius sets the size of the cone effect; repeating with R = 0.8 or
-  with Breit-frame (Centauro) clustering would separate "cone" from
-  "fragmentation" contributions cleanly.
-* Only e(10) × p(100) was simulated; 18 × 275 GeV extends W to ≈ 140 GeV and
-  moves y_cm.
+Everything between those two extremes is a choice made in the laboratory: a
+fixed cone keeps a boost-dependent share of the shower, and ordering
+constituents by laboratory momentum is not boost-invariant.  Both are
+quantified below.
 
 ---
 
-## 4. Has this been proposed for the EIC before?
+## 1. Why the EIC, and why beam energy is the only clean lever
 
-Checked on 2026-09-04:
+DIS has two kinematic degrees of freedom.  Within one beam configuration the
+laboratory frame is a deterministic function of them, so once (*W*, *Q*) is
+fixed nothing is left to vary: the current system's laboratory momentum is then
+pinned.  At *W* = 15–22 GeV the hemisphere's median |p|_lab runs 2.1, 4.2, 9.0
+and 17.4 GeV across the *Q* = 2.2–3.3, 3.3–5, 5–7.5 and 7.5–11 GeV bins, with a
+central-68 % spread of only about a factor of two inside each cell
+(`hemisphere_p_vs_q.pdf`).  A laboratory-momentum scan at fixed colour-frame
+energy is therefore a *Q* scan in disguise, and *Q* is a physical scale that the
+shower is entitled to know about.
 
-* **INSPIRE citations of arXiv:2308.10951:** 3 (a heavy-ion jet
-  background-subtraction paper, a top-jet classification paper, and a
-  quark/gluon tagging paper on CMS open data).  None mentions DIS, ep, the
-  EIC, HERA or the Breit frame.
-* **arXiv full-text and abstract searches** for "colour/color rest frame",
-  "frame-dependent fragmentation" with jets, and EIC + jet + fragmentation +
-  frame return only the reference paper and unrelated hits.  The EIC Yellow
-  Report ([arXiv:2103.05419](https://arxiv.org/abs/2103.05419)), the EIC jet
-  overview by Page, Chu and Aschenauer
-  ([arXiv:1911.00657](https://arxiv.org/abs/1911.00657)) and the NC-DIS jet
-  substructure study ([arXiv:2302.06941](https://arxiv.org/abs/2302.06941))
-  discuss lab-frame versus Breit-frame *jet finding* and yields, but none
-  studies a fragmentation observable at fixed lab momentum as a function of W,
-  nor frames anything in terms of the colour rest frame.
-* **Closest prior art is from HERA, and it is complementary rather than
-  overlapping.**  ZEUS ([arXiv:0803.3878](https://arxiv.org/abs/0803.3878))
-  and H1 ([hep-ex/9707005](https://arxiv.org/abs/hep-ex/9707005)) measured
-  charged multiplicities in the Breit current hemisphere as a function of Q and
-  in the γ*p current region as a function of W, and tested universality against
-  e⁺e⁻ at √s = Q or W.  Those are *frame-corrected* measurements designed to
-  remove the boost.  The present study asks the opposite question, the one
-  posed by arXiv:2308.10951: what a fixed-momentum *lab-frame* jet looks like
-  when its colour rest frame is boosted differently.  Breit-frame jet
-  algorithms for the EIC (Centauro,
-  [arXiv:2006.10751](https://arxiv.org/abs/2006.10751)) are likewise a way to
-  undo the boost, not to measure its imprint.
+This is the essential difference from the e⁺e⁻ → ZZ example of
+arXiv:2308.10951, where the Z boost varies independently of m_Z.  The EIC
+recovers an independent boost knob by changing the beams:
 
-Conclusion: no EIC (or HERA) proposal for a frame-dependent fragmentation shift
-at fixed lab-frame jet momentum was found.  The idea appears to be new, and the
-EIC adds something the e⁺e⁻ examples in the paper cannot: it varies the
-colour-frame boost continuously over a factor of ≈5 within one dataset, and it
-decouples the colour-frame energy (W) from the hard scale (Q).
+| configuration | √s | γ*p-frame rapidity in the lab at *W* = 15–22 GeV |
+|---|---|---|
+| 5 × 41 GeV | 28.6 GeV | small |
+| 10 × 100 GeV | 63.2 GeV | intermediate |
+| 18 × 275 GeV | 140.7 GeV | large |
+
+Every EIC run plan includes all three.  The comparison needs no new apparatus
+and no unfolding to a theoretical frame: it is the same measurement repeated at
+three beam settings.
+
+---
+
+## 2. The measurement
+
+**Samples.**  Pythia 8.317, neutral-current DIS, *Q*² > 1 GeV², *W* > 10 GeV,
+lepton-beam ISR off, DIS dipole-recoil shower on.  2.4 M events at 10 × 100 and
+1.2 M each at 5 × 41 and 18 × 275 GeV.
+
+**Cells.**  *W* ∈ {10–15, 15–22, 22–28} GeV × *Q* ∈ {2.2–3.3, 3.3–5, 5–7.5} GeV,
+requiring at least 400 entries per configuration.
+
+**Objects.**  The current hemisphere of the Breit frame taken whole; jets
+clustered in the γ*p frame with an angular (e⁺e⁻-style) anti-kT algorithm at
+*R* = 0.4 rad; and, for contrast, the leading anti-kT *R* = 0.4 jet clustered in
+the laboratory.
+
+**Observable.**  n₉₀, the interpolated number of constituents carrying 90 % of
+the object's scalar momentum, as defined in arXiv:2308.10951 Sec. 2, computed
+either from laboratory momenta or from colour-frame momenta.
+
+### 2.1 The whole current hemisphere
+
+⟨n₉₀⟩ per cell, with the hemisphere's median laboratory momentum in GeV
+(`beam_energy_hemisphere.pdf`):
+
+| cell | 5 × 41 | 10 × 100 | 18 × 275 | lever | exponent |
+|---|---|---|---|---|---|
+| *W* 10–15, *Q* 2.2–3.3 | 2.03 @ 1.9 | 1.91 @ 3.7 | 1.87 @ 9.4 | ×4.9 | −0.050 |
+| *W* 10–15, *Q* 3.3–5 | 2.60 @ 3.5 | 2.53 @ 8.2 | 2.53 @ 22.5 | ×6.5 | −0.014 |
+| *W* 10–15, *Q* 5–7.5 | 3.26 @ 6.5 | 3.24 @ 17.2 | 3.26 @ 48.5 | ×7.4 | −0.001 |
+| *W* 15–22, *Q* 2.2–3.3 | 2.15 @ 1.8 | 1.99 @ 2.1 | 1.87 @ 4.5 | ×2.6 | −0.126 |
+| *W* 15–22, *Q* 3.3–5 | 2.68 @ 2.5 | 2.58 @ 4.2 | 2.51 @ 10.7 | ×4.4 | −0.043 |
+| *W* 15–22, *Q* 5–7.5 | 3.40 @ 3.8 | 3.29 @ 9.0 | 3.25 @ 24.6 | ×6.5 | −0.023 |
+| *W* 22–28, *Q* 2.2–3.3 | 2.39 @ 2.3 | 2.05 @ 1.7 | 1.93 @ 2.7 | ×1.6 | −0.086 |
+| *W* 22–28, *Q* 3.3–5 | 2.78 @ 3.0 | 2.62 @ 2.8 | 2.52 @ 6.1 | ×2.2 | −0.088 |
+| *W* 22–28, *Q* 5–7.5 | 3.46 @ 3.6 | 3.36 @ 5.5 | 3.22 @ 14.0 | ×3.9 | −0.051 |
+
+Statistical errors on each ⟨n₉₀⟩ are 0.005–0.02.  The cell with the longest
+lever, *W* = 10–15 and *Q* = 5–7.5, moves the hemisphere from 6.5 to 48.5 GeV of
+laboratory momentum and changes ⟨n₉₀⟩ by 0.02 out of 3.25.
+
+The residual is not an artefact of wide cells.  Reweighting each configuration
+to a common (*W*, *Q*) distribution on an 8 × 8 grid inside every cell moves the
+median exponent from −0.050 to −0.045.
+
+### 2.2 The residual is the observable's ordering frame, not the physics
+
+At fixed (*W*, *Q*) the hemisphere contains the same particles with the same
+colour-frame momenta whichever beams produced it.  What differs is that n₉₀
+orders constituents by *laboratory* momentum, and ordering is not
+boost-invariant: a large boost pushes the ordering towards light-cone momentum,
+which concentrates the object in fewer particles.
+
+Recomputing n₉₀ from colour-frame momenta for exactly the same hemispheres
+removes most of the residual (`beam_energy_ordering.pdf`):
+
+| cell | lab-ordered | frame-ordered |
+|---|---|---|
+| *W* 10–15, *Q* 2.2–3.3 | −0.050 | −0.031 |
+| *W* 15–22, *Q* 2.2–3.3 | −0.126 | −0.073 |
+| *W* 15–22, *Q* 5–7.5 | −0.023 | −0.003 |
+| *W* 22–28, *Q* 2.2–3.3 | −0.086 | −0.006 |
+| *W* 22–28, *Q* 5–7.5 | −0.051 | −0.008 |
+| **median over nine cells** | **−0.050** | **−0.008** |
+
+For narrow γ*p-frame jets the two orderings agree, −0.001 against +0.015, both
+consistent with zero within the cell-to-cell scatter: a collimated object is
+nearly unaffected by a longitudinal boost, so its ordering survives.  The
+ordering effect is specific to wide objects.
+
+### 2.3 What a laboratory cone does
+
+Repeating the identical cell comparison with the leading anti-kT *R* = 0.4 jet
+clustered in the laboratory gives a median exponent of +0.038, ranging to +0.14,
+with the lowest-energy configuration breaking away in the higher-*Q* cells
+(`beam_energy_labjet.pdf`).  The cause is direct: a fixed cone does not hold a
+fixed share of the current system.  At *Q* = 5–7.5 GeV the leading current jet
+carries 0.60 of the hemisphere's laboratory momentum at p_T = 2 GeV and 1.05 at
+p_T = 8 GeV, and above unity it is sweeping in the target side as well
+(`capture_fraction.pdf`).
+
+Widening the cone does not fix this.  With *Q* and colour-frame energy both held
+fixed within one beam configuration, the residual dependence on lab p_T is
++0.41, +0.40, +0.38, +0.35 and +0.27 for *R* = 0.4, 0.8, 1.2, 1.6 and 2.4, and
+only +0.06 for the whole hemisphere (`slope_vs_radius.pdf`).  The geometry is
+not the obstacle — the hemisphere is compact in the laboratory, the radius
+containing 90 % of its momentum having median 0.39 and reaching 0.76 in the
+highest *W* slice — the obstacle is that anti-kT selects and splits by
+laboratory p_T while the shower is organised in another frame.
+
+---
+
+## 3. What the effect looks like with no control at all
+
+The inclusive measurement is the one an experiment would make by default, and it
+shows the frame-dependent shift at full strength.  For the current hemisphere at
+10 × 100 GeV, ⟨n₉₀⟩ rises from 1.59 to 4.06 between |p|_lab ≈ 1.3 and 32 GeV,
+an exponent of +0.277 (`hemisphere_vs_p.pdf`).  Slicing in colour-frame energy
+does not flatten it (median spread 90 %), because along each slice the median
+*Q* climbs — from 2.0 to 12 GeV in the *E*_cm = 4–6 GeV slice.
+
+For laboratory jets the same story appears as a fan in *W*.  At fixed lab-frame
+jet momentum ⟨n₉₀⟩ rises with *W* by +35 % to +83 % between *W* = 10–15 and
+32–45 GeV (`ffs_fan.pdf`, `ffs_slopegraph.pdf`), and by construction those jets
+also differ in *Q* and in the share of the shower their cone holds.
+
+The point of Sec. 2 is that all of this structure is bookkeeping about what was
+put in the bin, and none of it is fragmentation responding to the laboratory.
+
+---
+
+## 4. Method and framework
+
+Pipeline: `generate_events.py` (Pythia 8, particle-level, stores q, k′, the beam
+proton and the struck parton), `analyze_events.py` (jet finding in the lab and
+in the γ*p frame, frame boosts, n₉₀, per-jet and per-event trees),
+`make_figures.py` (one panel per PDF).  `./run.sh` reproduces the 10 × 100
+sample in about five minutes on four cores; the two other beam configurations
+are the same command with different `--electron-energy` and `--proton-energy`.
+
+Verified: the n₉₀ definition and interpolation reproduce arXiv:2308.10951
+Sec. 2, and the vectorised implementation agrees with a scalar reference to
+1 × 10⁻¹¹; the Breit construction gives exactly zero boson energy and |q| = *Q*;
+*W* reconstructed from the stored hadronic final state agrees with the DIS
+invariants to 0.03 GeV on average, the residual being neutrinos from
+heavy-flavour decay.
+
+### Audit of the original framework
+
+The premise of the original code was right, but it could not have measured the
+effect.  All items are fixed on this branch.
+
+| severity | finding | fix |
+|---|---|---|
+| **blocking** | The hard-process lepton was found with `status == 23` in the event record. The shower copies it, so the record carries −23 in ~96 % of events; those were silently dropped and the surviving 4 % are a biased subset with no lepton radiation or recoil. | Read it from `pythia.process`, where the status is always +23. Efficiency 100 %. |
+| major | Lepton-beam ISR left on, so the stored q = k_beam − k′ included the radiated photon and was not the exchanged boson; *W*, *Q*², *x*, *y* were mis-reconstructed for radiative events. | `PDF:lepton = off`, the standard EIC choice; a flag restores it. |
+| major | Breit frame and γ*p frame conflated. They differ by a boost along the boson axis; the struck quark carries *Q*/2 in one and *W*/2 in the other. Only the γ*p frame is the colour rest frame. | Both boosts computed and stored per jet; text corrected. |
+| major | The sign of the predicted effect was stated backwards. | Corrected, and confirmed by simulation. |
+| major | All jets used, including proton-remnant fragments at forward rapidity. | Jets flagged by Breit hemisphere; figures use current jets. |
+| moderate | FastJet installed but never used: the run script never passed the flag, so a greedy cone was the production algorithm. | Anti-kT via FastJet by default. |
+| moderate | No dipole-recoil shower for DIS; an arbitrary rapidity-ordering change instead. | `SpaceShower:dipoleRecoil = on`. |
+| moderate | Uncertainty on ⟨n₉₀⟩ taken as √(mean/N), a Poisson assumption invalid for an interpolated observable. | Standard error of the mean. |
+| moderate | The default 200 k sample has median *W* ≈ 8 GeV; events with *W* > 30 GeV and a current jet are ~1 % of it. | Generation-time *W* cut, parallel seeds. |
+| minor | All electrons and muons removed from the final state rather than the scattered lepton and its radiation. | Removal by ancestry of the hard-process lepton. |
+
+---
+
+## 5. Caveats
+
+* Pythia only.  arXiv:2308.10951 compared Pythia, Vincia and Herwig; a Herwig 7
+  or Sherpa cross-check of the ladder is the obvious next step and is a
+  generator swap in this framework.
+* Detector effects are absent.  The three configurations put the current system
+  at different rapidities, so the acceptance and momentum resolution of the same
+  detector differ between them.  A frame-independence test is only as good as
+  the control of that difference, and it is the main experimental risk.
+* The hemisphere requires reconstructing the Breit frame event by event, so it
+  inherits the resolution of the scattered-lepton or hadronic-method kinematics.
+* The *W* = 22–28 GeV cells sit at the edge of the 5 × 41 phase space
+  (W_max ≈ 28.6 GeV, y → 1) and carry the largest residuals; a measurement would
+  either drop them or narrow the binning.
+* *Q*² > 1 GeV² admits jets from boson–gluon fusion and QCD Compton. The colour
+  rest frame is still the γ*p frame, but the jet is not the Born struck quark;
+  the stored parton match isolates the Born-like sample.
+* Only n₉₀ is studied here. The same ladder should be repeated for charged
+  multiplicity and for a jet-shape observable before claiming generality.
+
+---
+
+## 6. Prior work
+
+Checked on 2026-09-05.
+
+* **Citations of arXiv:2308.10951** on INSPIRE: three, on heavy-ion jet
+  background subtraction, top-jet classification and quark/gluon tagging in CMS
+  open data.  None mentions DIS, ep, the EIC, HERA or the Breit frame.
+* **arXiv searches** for "colour/color rest frame", "frame-dependent
+  fragmentation" with jets, and EIC + jet + fragmentation + frame return the
+  reference paper and unrelated hits.
+* **EIC literature.**  The Yellow Report
+  ([2103.05419](https://arxiv.org/abs/2103.05419)), the EIC jet overview
+  ([1911.00657](https://arxiv.org/abs/1911.00657)) and the NC-DIS substructure
+  study ([2302.06941](https://arxiv.org/abs/2302.06941)) compare laboratory and
+  Breit-frame jet finding and yields.  None studies a fragmentation observable
+  at fixed laboratory momentum as a function of *W*, and none proposes a
+  beam-energy comparison at fixed colour-frame kinematics.
+* **HERA.**  ZEUS ([0803.3878](https://arxiv.org/abs/0803.3878)) and H1
+  ([hep-ex/9707005](https://arxiv.org/abs/hep-ex/9707005)) measured
+  multiplicities in the Breit current hemisphere against *Q* and in the γ*p
+  current region against *W*, testing universality against e⁺e⁻.  Those are
+  frame-corrected measurements designed to remove the boost; the test proposed
+  here uses the boost as the independent variable.  Breit-frame jet algorithms
+  for the EIC (Centauro, [2006.10751](https://arxiv.org/abs/2006.10751)) are
+  likewise a way to undo the boost.
+* HERA ran at essentially one beam-energy configuration for most of its life,
+  with a short low-energy run at the end; the EIC's three configurations with
+  comparable luminosity are what makes this test practical.
+
+No prior proposal of a beam-energy frame-independence test of fragmentation was
+found.

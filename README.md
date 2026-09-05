@@ -63,7 +63,8 @@ event is therefore harder in its colour rest frame and fragments into more
 particles: ⟨n₉₀⟩ rises with *W* at fixed |p|_lab.  This is the FFS effect at
 the EIC.  The corrected simulation finds shifts of +35 % to +80 % between
 *W* = 10–15 GeV and *W* = 32–45 GeV for |p|_lab = 2–22 GeV; see
-[`PHYSICS_AUDIT.md`](PHYSICS_AUDIT.md) for the audit, the numbers and the
+[`PHYSICS_AUDIT.md`](PHYSICS_AUDIT.md) for the study note: the beam-energy
+frame-independence test, the numbers, the audit of the original code and the
 literature check (no prior EIC proposal of this kind was found).
 
 ---
@@ -77,7 +78,7 @@ EICFFS/
 ├── environment.yml          # Conda/mamba environment spec
 ├── run.sh                   # End-to-end pipeline script
 │
-├── PHYSICS_AUDIT.md         # Audit of the physics, fixes, results, literature check
+├── PHYSICS_AUDIT.md         # Study note: beam-energy frame test, results, audit, prior work
 │
 ├── generate_events.py       # Step 1 — Pythia8 NC-DIS event generation
 ├── analyze_events.py        # Step 2 — jets, frame boosts, n₉₀ → ROOT trees + histograms
@@ -214,6 +215,8 @@ following Tufte: range frames, direct labels, no grids or legends.
 | `flat_cmjets.pdf` | **Primary result**: ⟨n₉₀⟩ of colour-frame jets vs *p*_T^lab, sliced in *E*_cm — flat |
 | `flat_labjets.pdf` | the same test for lab jets — the slices collapse and rise, spanning 85 % |
 | `universal_cm.pdf` | ⟨n₉₀⟩ vs *E*_cm sliced in *p*_T^lab — one curve |
+| `frame_ladder.pdf` | **headline**: lab-frame dependence of each definition, across three beam configurations |
+| `beam_energy_ordering.pdf` | the same hemispheres ordered by lab and by colour-frame momenta |
 | `beam_energy_hemisphere.pdf`, `beam_energy_cmjet.pdf`, `beam_energy_labjet.pdf` | fixed (*W*, *Q*) cells across 5×41, 10×100 and 18×275 GeV: same physics, three lab frames (needs `--beams`) |
 | `hemisphere_vs_p.pdf`, `hemisphere_vs_p_fixed_q.pdf` | whole current hemisphere against full lab momentum, inclusive and sliced in *E*_cm, then at fixed *Q* |
 | `hemisphere_p_vs_q.pdf` | at fixed *W* the current system's lab momentum is a function of *Q*: no independent boost knob |
