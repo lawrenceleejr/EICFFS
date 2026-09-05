@@ -1037,6 +1037,59 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     return out
 
 
+def fig_ladder_vs_radius(beam_paths, outdir):
+    """
+    Beam-energy frame dependence of a laboratory cone against its radius, with
+    the frame-defined object for reference.  EIC studies normally use R ~ 1.
+    """
+    SD = "#7a4fa3"
+    xs, y90, ysd = [], [], []
+    for tree, R in [("jets_R0p4", 0.4), ("jets_R0p8", 0.8), ("jets_R1p2", 1.2),
+                    ("jets_R1p6", 1.6), ("jets_R2p4", 2.4)]:
+        ds = [(l, _load_tree(p, tree, ["W", "Q2", "plab", "n90", "n_sd", "lead", "current"],
+                             lambda d: d["lead"] & d["current"] & np.isfinite(d["n90"])))
+              for l, p in beam_paths]
+        s90 = _cell_slopes(ds, "W", BEAM_CELLS_W, "n90")
+        ssd = _cell_slopes(ds, "W", BEAM_CELLS_W, "n_sd")
+        if len(s90):
+            xs.append(R); y90.append(np.median(s90))
+            ysd.append(np.median(ssd) if len(ssd) else np.nan)
+
+    hemi = [(l, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90_cm"],
+                           lambda d: np.isfinite(d["n90_cm"]) & (d["plab"] > 1.0)))
+            for l, p in beam_paths]
+    h90 = float(np.median(_cell_slopes(hemi, "W", BEAM_CELLS_W, "n90_cm")))
+
+    fig, ax = plt.subplots(figsize=(4.8, 3.3))
+    ax.axvspan(0.8, 1.2, color="#3182bd", alpha=0.07, lw=0)
+    ax.axhline(0.0, color=FAINT, lw=0.9, zorder=0)
+    ax.axhline(h90, color="#2f6b4f", lw=0.9, ls=(0, (4, 2)), zorder=0)
+    ax.plot(xs, y90, color=INK, lw=1.3, marker="o", ms=4.5, mec="white", mew=0.5)
+    ax.plot(xs, ysd, color=SD, lw=1.3, marker="s", ms=4, mec="white", mew=0.5)
+    ax.annotate("whole current hemisphere", (2.42, h90), xytext=(0, -11),
+                textcoords="offset points", ha="right", fontsize=7, color="#2f6b4f")
+    ax.annotate(r"$n_{90}$", (xs[-1], y90[-1]), xytext=(7, 0), textcoords="offset points",
+                fontsize=8, color=INK, va="center")
+    ax.annotate(r"$n_{\rm SD}$ in the lab", (xs[-1], ysd[-1]), xytext=(7, 0),
+                textcoords="offset points", fontsize=8, color=SD, va="center")
+    ax.annotate("radius EIC studies use", (1.0, 0.085), ha="center", fontsize=7, color=MUTED)
+    ax.set_xlabel(r"anti-$k_T$ radius of the lab jet, $R$")
+    ax.set_ylabel("frame dependence across beam energies")
+    ax.set_xlim(0.2, 3.5)
+    ax.set_xticks([0.4, 0.8, 1.2, 1.6, 2.4])
+    ax.set_xticklabels(["0.4", "0.8", "1.2", "1.6", "2.4"])
+    ax.minorticks_off()
+    range_frame(ax, np.array(xs), np.array(y90 + ysd + [0.0]))
+    caption(ax, "Exponent d ln$\\langle\\,\\cdot\\,\\rangle$/d ln$|\\vec p|_{\\rm lab}$ in fixed "
+                "$(W, Q)$ cells across the three beam configurations, against the radius of the "
+                "laboratory cone.  At the radius the EIC community actually uses, a plain lab cone is "
+                "already frame independent for $n_{90}$; the $R$ = 0.4 inherited from the reference "
+                "paper is the worst case.  An angular-cut observable computed in the lab stays badly "
+                "dependent at every radius.")
+    save(fig, outdir, "ladder_vs_radius")
+    return dict(zip(xs, y90))
+
+
 def fig_beam_sd(beam_paths, outdir):
     """Iterated soft-drop multiplicity: computed in the lab it collapses, in the frame it does not."""
     hemi = [(l, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n_sd", "n_sd_cm"],
@@ -1496,6 +1549,8 @@ def main():
         ladder = fig_frame_ladder(beam_paths, args.outdir, incl)
         fig_beam_ordering(beam_paths, args.outdir)
         fig_beam_sd(beam_paths, args.outdir)
+        byR = fig_ladder_vs_radius(beam_paths, args.outdir)
+        print("  ladder vs radius (n90): " + ", ".join(f"R={k}:{v:+.3f}" for k, v in byR.items()))
         print("  frame ladder: " + ", ".join(f"{k}={v:+.3f}" for k, v in ladder.items()))
         for k, v in res.items():
             print(f"  beam-energy test, {k}: slope per cell "
