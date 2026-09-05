@@ -32,7 +32,7 @@ d ln⟨n₉₀⟩ / d ln|p|_lab across the three configurations:
 | γ*p-frame jet, from lab momenta | −0.001 | −0.430 |
 | whole current hemisphere, from colour-frame momenta | −0.008 | −0.007 |
 | γ*p-frame jet, from colour-frame momenta | +0.015 | +0.016 |
-| either object, in its own rest frame | — | −0.018 |
+| either object, in its own rest frame | — | −0.016 |
 
 n_SD is the iterated soft-drop multiplicity, an IRC-safe counting observable
 used here as a cross-check on n₉₀ (Sec. 3).  It gives the same answer where it
@@ -276,11 +276,11 @@ Hold *Q* fixed at 3.3–5 GeV and slice in *W*:
 
 | *W* | ⟨N_const⟩ | ⟨n₉₀⟩ | ⟨n_SD⟩ γ*p frame | ⟨n_SD⟩ object rest frame |
 |---|---|---|---|---|
-| 10–15 | 3.85 | 2.685 | 1.651 | 0.970 |
-| 15–22 | 3.87 | 2.697 | 1.489 | 0.979 |
-| 22–32 | 3.84 | 2.678 | 1.235 | 0.969 |
-| 32–45 | 3.83 | 2.671 | 0.933 | 0.971 |
-| **change** | **−0.4 %** | **−0.5 %** | **−43.5 %** | **+0.1 %** |
+| 10–15 | 3.85 | 2.685 | 1.651 | 1.878 |
+| 15–22 | 3.87 | 2.697 | 1.489 | 1.885 |
+| 22–32 | 3.84 | 2.678 | 1.235 | 1.873 |
+| 32–45 | 3.83 | 2.671 | 0.933 | 1.864 |
+| **change** | **−0.4 %** | **−0.5 %** | **−43.5 %** | **−0.7 %** |
 
 The hemisphere's particle content is *unchanged* across this range — that is the
 classic HERA result that current-region multiplicity is set by *Q*, not by *W* —
@@ -292,13 +292,59 @@ into smaller opening angles, they fall below θ_cut = 0.1 rad, and the branching
 stop being counted.
 
 Boosting into the object's own rest frame before applying the cut removes this
-entirely: +0.1 % across the same range, and −0.018 on the beam-energy ladder.
+entirely: −0.7 % across the same range, and −0.016 on the beam-energy ladder.
 The lesson generalises: **an absolute angular cut inherits whatever boost the
 object has in the frame where the cut is applied**, and identifying the colour
 rest frame of the event is not sufficient — the object of interest must also be
 at rest.
 
-### 3.5 Which to use
+### 3.5 Which frame, and which variables
+
+Soft drop is normally written for pp with transverse-momentum fractions and an
+angular distance in rapidity–azimuth,
+z = min(p_T1, p_T2)/(p_T1 + p_T2) > z_cut (ΔR₁₂/R₀)^β
+([arXiv:1402.2657](https://arxiv.org/abs/1402.2657)), and iterated soft drop
+inherits that convention.  Those variables are invariant under boosts along the
+*beam*, so in pp the choice of frame is neutralised by the variables rather than
+by boosting anything.  The e⁺e⁻ form uses energy fractions and opening angles,
+equivalent in the small-angle limit, and is applied in the CM frame where there
+is no ambiguity.
+
+Neither is automatically safe in DIS, because the boost relating the laboratory
+to the colour rest frame runs along *P + q*, not along the beam.  The variant
+used above — e⁺e⁻ variables in the laboratory — is the worst case, and that is
+why it gave −0.474.  Measuring the *standard pp variables about the P + q axis*
+fixes it with no boosting at all (`sd_frame_test.py`,
+`figures/sd_frame_choice.pdf`):
+
+| prescription | exponent | ⟨n_SD⟩ |
+|---|---|---|
+| e⁺e⁻ variables (E, θ) in the laboratory | −0.474 | 1.37 |
+| **pp variables (p_T, ΔR) about the P + q axis, in the lab** | **−0.009** | 1.49 |
+| e⁺e⁻ variables in the object's own rest frame | −0.011 | 1.67 |
+
+**Is the object rest frame well defined?**  Mathematically yes whenever the
+object has m² > 0 and at least two constituents, and it preserves IRC safety: a
+collinear splitting leaves the total four-momentum, and hence the boost,
+exactly unchanged, while a soft addition moves it continuously.  But it has
+three drawbacks.  A two-body object is *exactly* back to back in its own rest
+frame — θ = 180.0°, and z = 0.500 for equal masses — so all angular information
+is destroyed, and 26 % of Breit current hemispheres hold exactly two particles.
+The boost factor is E/m, set by the object's mass, which for a narrow jet is
+dominated by its softest wide-angle structure, so the frame is formally safe but
+numerically jumpy.  And it is not the standard convention, so results would not
+be directly comparable with pp or e⁺e⁻ measurements.
+
+The recommendation is therefore the middle row: keep the standard soft-drop
+variables and measure them about the P + q axis.  It is the same prescription
+the Breit-frame jet algorithms use for the same reason.
+
+*(That two-body degeneracy also exposed an implementation bug: reclustering at
+a radius of exactly π leaves a back-to-back pair tied against the beam distance,
+so it is never merged and the declustering finds no branchings.  Every n_SD
+number here was regenerated with the radius above π.)*
+
+### 3.6 Which to use
 
 For a measurement, n_SD computed in the object's own rest frame is the best of
 both: IRC safe, and frame independent to under two percent across beam energies
@@ -307,13 +353,13 @@ in the laboratory it should be avoided.  n₉₀ in the colour frame is equally
 frame independent and simpler to construct, at the cost of collinear unsafety,
 which matters for comparison to fixed-order or resummed calculations but not for
 a Monte Carlo comparison at hadron level.  Whichever variant is chosen, n_SD is
-small at EIC energies — 0.68 in the object rest frame, with 55 % of hemispheres
+small at EIC energies — 1.45 in the object rest frame, with 21 % of hemispheres
 giving zero — so n₉₀ carries more information per event despite being collinear
 unsafe.
 
 ---
 
-## 3.6 Dropping cones altogether
+## 3.7 Dropping cones altogether
 
 If a fixed cone is the problem, the obvious move is to abandon it and always
 measure the whole current region.  That works, and it is the recommendation,

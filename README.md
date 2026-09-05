@@ -85,6 +85,7 @@ EICFFS/
 ├── make_figures.py          # Step 3 — Tufte-style figures (one panel per PDF)
 ├── irc_safety_test.py       # IRC safety of n₉₀ against soft-drop multiplicity
 ├── object_choice_test.py    # which current-region definition and thresholds to use
+├── sd_frame_test.py         # which frame and variables for soft-drop multiplicity
 ├── make_plots.py            # Legacy multi-panel plots from the histograms
 │
 ├── utils/
@@ -217,6 +218,7 @@ following Tufte: range frames, direct labels, no grids or legends.
 | `flat_cmjets.pdf` | **Primary result**: ⟨n₉₀⟩ of colour-frame jets vs *p*_T^lab, sliced in *E*_cm — flat |
 | `flat_labjets.pdf` | the same test for lab jets — the slices collapse and rise, spanning 85 % |
 | `universal_cm.pdf` | ⟨n₉₀⟩ vs *E*_cm sliced in *p*_T^lab — one curve |
+| `sd_frame_choice.pdf` | soft-drop frame conventions on the beam test (from `sd_frame_test.py`) |
 | `object_choice.pdf` | frame test over current-region definitions and particle thresholds (from `object_choice_test.py`) |
 | `irc_safety.pdf` | collinear and soft safety of n₉₀ against n_SD (from `irc_safety_test.py`) |
 | `beam_energy_sd.pdf` | n_SD across beam configurations, computed in the lab and in the colour frame |
