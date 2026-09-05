@@ -182,7 +182,7 @@ def cell_lines(beams, key):
     return rows
 
 
-def draw_cells(beams, key, name, title, outdir, span, caption_text, mark_top=False):
+def draw_cells(beams, key, name, title, outdir, span, caption_text):
     """One panel: the cell lines across beam energies, log axes, fixed vertical span."""
     rows = cell_lines(beams, key)
     fig, ax = plt.subplots(figsize=(4.8, 3.5))
@@ -216,10 +216,11 @@ def draw_cells(beams, key, name, title, outdir, span, caption_text, mark_top=Fal
                     (kx, 1.05), xytext=(6, 0), textcoords="offset points", xycoords="axes fraction",
                     va="center", ha="left", fontsize=7, color=MUTED)
         kx += 0.30 if iq == 0 else 0.17
-    # beam names go under the lowest line (nothing beneath it) or above the highest
-    pick = (max if mark_top else min)(rows, key=lambda r: np.mean(np.log(r[5])))
+    # beam names go under the lowest line that stays in view (nothing beneath it)
+    in_view = [r for r in rows if r[5].min() > 1.3 * gm / span] or rows
+    pick = min(in_view, key=lambda r: np.mean(np.log(r[5])))
     for x, y, lab in zip(pick[4], pick[5], beams.keys()):
-        ax.annotate(lab.replace("x", "$\\times$"), (x, y), xytext=(0, 9 if mark_top else -12),
+        ax.annotate(lab.replace("x", "$\\times$"), (x, y), xytext=(0, -12),
                     textcoords="offset points", fontsize=6.5, color=MUTED, ha="center")
     # one label per W family, on its right-most cell, in a leader-line column
     from make_figures import EndLabels
@@ -316,7 +317,7 @@ def main():
                "18$\\times$275 GeV, so the colour-frame physics is identical along it and only the "
                "laboratory frame changes.  With an absolute opening-angle cut the observable collapses "
                "as the beams get harder: the hemisphere collimates below $\\theta_{\\rm cut}$ and its "
-               "branchings stop being counted.  Median exponent $-0.474$.", mark_top=True)
+               "branchings stop being counted.  Median exponent $-0.474$.")
     draw_cells(beams, "beam_pp", "beam_energy_sd_standard",
                r"$n_{\rm SD}$, standard $pp$ variables in the laboratory", args.outdir, span,
                "The same cells and the same laboratory measurement, with soft drop written the standard "

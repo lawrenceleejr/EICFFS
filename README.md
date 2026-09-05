@@ -222,9 +222,12 @@ following Tufte: range frames, direct labels, no grids or legends.
 | `object_choice.pdf` | frame test over current-region definitions and particle thresholds (from `object_choice_test.py`) |
 | `irc_safety.pdf` | collinear and soft safety of n₉₀ against n_SD (from `irc_safety_test.py`) |
 | `beam_energy_sd.pdf` | n_SD across beam configurations, computed in the lab and in the colour frame |
-| `frame_ladder.pdf` | **headline**: lab-frame dependence of each definition, across three beam configurations |
+| `frame_ladder.pdf` | **headline**: lab-frame dependence of each definition, for n₉₀ and standard-form n_SD, across three beam configurations |
+| `frame_breakers.pdf` | the choices that introduce lab-frame dependence, ranked by how much |
+| `ladder_vs_radius.pdf` | the lab-cone rung against anti-kT radius; *R* ≈ 1 is already frame independent |
+| `beam_energy_sd_ee.pdf`, `beam_energy_sd_standard.pdf` | hemisphere n_SD across beam configurations in the e⁺e⁻ form (collapses) and the standard pp form (flat), same vertical span (from `sd_frame_test.py`) |
 | `beam_energy_ordering.pdf` | the same hemispheres ordered by lab and by colour-frame momenta |
-| `beam_energy_hemisphere.pdf`, `beam_energy_cmjet.pdf`, `beam_energy_labjet.pdf` | fixed (*W*, *Q*) cells across 5×41, 10×100 and 18×275 GeV: same physics, three lab frames (needs `--beams`) |
+| `beam_energy_hemisphere.pdf`, `beam_energy_cmjet.pdf`, `beam_energy_labjet.pdf` | fixed (*W*, *Q*) cells across 5×41, 10×100 and 18×275 GeV: same physics, three lab frames, for the hemisphere, the γ*p-frame jet and the *R* = 1.2 lab jet (needs `--beams`) |
 | `hemisphere_vs_p.pdf`, `hemisphere_vs_p_fixed_q.pdf` | whole current hemisphere against full lab momentum, inclusive and sliced in *E*_cm, then at fixed *Q* |
 | `hemisphere_p_vs_q.pdf` | at fixed *W* the current system's lab momentum is a function of *Q*: no independent boost knob |
 | `slope_vs_radius.pdf` | residual lab-p_T dependence at fixed *Q* and *E*_cm against jet radius |

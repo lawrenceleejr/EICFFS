@@ -24,21 +24,24 @@ fragmentation is a property of the colour rest frame, ⟨n₉₀⟩ must not mov
 It does not.  Measuring the lab-frame dependence as the exponent
 d ln⟨n₉₀⟩ / d ln|p|_lab across the three configurations:
 
-| what is measured | n₉₀ | n_SD |
+| what is measured | n₉₀ | n_SD, standard form |
 |---|---|---|
 | all hemispheres, one beam energy, no control | **+0.277** | non-monotonic |
-| leading anti-kT *R* = 0.4 lab jet, fixed (*W*, *Q*) | +0.038 | −1.48 |
-| whole current hemisphere, from lab momenta | −0.050 | −0.513 |
-| γ*p-frame jet, from lab momenta | −0.001 | −0.430 |
+| leading anti-kT *R* = 1.2 lab jet, fixed (*W*, *Q*) | +0.011 | +0.007 |
+| whole current hemisphere, from lab momenta | −0.050 | −0.018 |
+| γ*p-frame jet, from lab momenta | −0.001 | +0.016 |
 | whole current hemisphere, from colour-frame momenta | −0.008 | −0.007 |
 | γ*p-frame jet, from colour-frame momenta | +0.015 | +0.016 |
-| either object, in its own rest frame | — | −0.016 |
 
 n_SD is the iterated soft-drop multiplicity, an IRC-safe counting observable
-used here as a cross-check on n₉₀ (Sec. 3).  It gives the same answer where it
-matters — no lab dependence once the observable is built in the colour frame —
-but it is far more fragile when computed in the laboratory, because its
-angular cut is a laboratory angle and a boost rescales angles.
+used here as a cross-check on n₉₀ (Sec. 3).  In its standard hadron-collider
+form — transverse-momentum fractions and a rapidity–azimuth distance, which are
+invariant under a boost along the axis — it can be evaluated on laboratory
+momenta as they are, and it agrees with n₉₀ on every rung.  (The colour-frame
+rows use the e⁺e⁻ form evaluated in that frame, where the two forms coincide.)
+The e⁺e⁻ form with an absolute opening-angle cut, applied in the laboratory, is
+a different matter: a boost rescales angles and the observable collapses,
+−0.47 for the hemisphere.  Sec. 3.5 separates the two.
 
 The steep inclusive slope is not fragmentation responding to the laboratory.
 It is the (*W*, *Q*) content of the sample changing along the axis.  Once the
@@ -46,10 +49,15 @@ colour-frame kinematics are held fixed and the observable is defined in that
 frame, the residual dependence on a factor of seven in laboratory momentum is
 consistent with zero (`figures/frame_ladder.pdf`).
 
-Everything between those two extremes is a choice made in the laboratory: a
-fixed cone keeps a boost-dependent share of the shower, ordering constituents
-by laboratory momentum is not boost-invariant, and an angular cut applied in
-the laboratory is rescaled by the boost.  All three are quantified below.
+Everything between those two extremes is a choice made in the laboratory, and
+none of it is a property of fragmentation.  `figures/frame_breakers.pdf` ranks
+the choices by the laboratory dependence they introduce on the same test: an
+opening-angle cut applied in the laboratory (−0.47), no (*W*, *Q*) control at
+all (+0.28), a laboratory momentum threshold on every particle (+0.25),
+ordering a wide object's constituents by laboratory momentum (−0.05), and a lab
+cone at *R* = 0.4 rather than the *R* ≈ 1 the EIC community uses (+0.04).  A
+transverse-momentum threshold, the boost-invariant version of the third,
+introduces +0.01.  All are quantified below.
 
 ---
 
@@ -92,8 +100,9 @@ requiring at least 400 entries per configuration.
 
 **Objects.**  The current hemisphere of the Breit frame taken whole; jets
 clustered in the γ*p frame with an angular (e⁺e⁻-style) anti-kT algorithm at
-*R* = 0.4 rad; and, for contrast, the leading anti-kT *R* = 0.4 jet clustered in
-the laboratory.
+*R* = 0.4 rad; and, for contrast, the leading anti-kT jet clustered in the
+laboratory at *R* = 1.2, the radius EIC studies use, with *R* = 0.4 to 2.4 in
+the radius scan.
 
 **Observable.**  n₉₀, the interpolated number of constituents carrying 90 % of
 the object's scalar momentum, as defined in arXiv:2308.10951 Sec. 2, computed
@@ -151,11 +160,13 @@ ordering effect is specific to wide objects.
 
 ### 2.3 What a laboratory cone does
 
-Repeating the identical cell comparison with the leading anti-kT *R* = 0.4 jet
-clustered in the laboratory gives a median exponent of +0.038, ranging to +0.14,
-with the lowest-energy configuration breaking away in the higher-*Q* cells
-(`beam_energy_labjet.pdf`).  The cause is direct: a fixed cone does not hold a
-fixed share of the current system.  At *Q* = 5–7.5 GeV the leading current jet
+Repeating the identical cell comparison with the leading anti-kT jet clustered
+in the laboratory at *R* = 1.2, the radius EIC studies use, gives a median
+exponent of +0.011 (`beam_energy_labjet.pdf`): a plain lab cone of sensible
+size is already frame independent.  At the *R* = 0.4 of the reference paper the
+exponent is +0.038, ranging to +0.14, with the lowest-energy configuration
+breaking away in the higher-*Q* cells (`ladder_vs_radius.pdf`).  The cause is
+direct: a fixed small cone does not hold a fixed share of the current system.  At *Q* = 5–7.5 GeV the leading current jet
 carries 0.60 of the hemisphere's laboratory momentum at p_T = 2 GeV and 1.05 at
 p_T = 8 GeV, and above unity it is sweeping in the target side as well
 (`capture_fraction.pdf`).
@@ -227,8 +238,8 @@ below θ_cut.  Both are infrared safe.
 
 ### 3.2 What n_SD does to the frame picture
 
-Repeating the beam-energy ladder with n_SD gives the striking result in the
-summary table, and it cuts both ways.
+Repeating the beam-energy ladder with n_SD in the e⁺e⁻ form gives a striking
+result, and it cuts both ways.
 
 *Where the observable is built in the colour frame, the two agree exactly:*
 −0.007 against −0.008 for the hemisphere, +0.016 against +0.015 for the γ*p
@@ -461,20 +472,22 @@ arXiv:2308.10951, not from EIC practice.  Repeating the beam-energy ladder at
 the radii the field actually uses weakens the claim that a lab cone spoils
 frame independence:
 
-| leading lab jet | n₉₀ exponent | n_SD exponent | ⟨N_const⟩ |
-|---|---|---|---|
-| *R* = 0.4 | +0.038 | −1.480 | 2.6 |
-| *R* = 0.8 | +0.035 | −0.545 | 4.1 |
-| *R* = 1.2 | +0.011 | −0.329 | 5.2 |
-| *R* = 1.6 | +0.003 | −0.302 | 6.1 |
-| *R* = 2.4 | −0.002 | −0.346 | 7.4 |
+| leading lab jet | n₉₀ exponent | n_SD exponent, standard form | n_SD exponent, e⁺e⁻ form | ⟨N_const⟩ |
+|---|---|---|---|---|
+| *R* = 0.4 | +0.038 | +0.051 | −1.480 | 2.6 |
+| *R* = 0.8 | +0.035 | +0.029 | −0.545 | 4.1 |
+| *R* = 1.2 | +0.011 | +0.007 | −0.329 | 5.2 |
+| *R* = 1.6 | +0.003 | −0.004 | −0.302 | 6.1 |
+| *R* = 2.4 | −0.002 | −0.024 | −0.346 | 7.4 |
 
 At the EIC-standard *R* ≈ 1 a laboratory cone is already frame independent for
 n₉₀ to about a percent, comparable to the γ*p-frame jet (+0.015) and the
-hemisphere (−0.008).  On the beam-energy test the cone is therefore *not* the
-problem for n₉₀; the problems are running with no control at all (+0.277) and
-computing an angular-cut observable in the laboratory (−0.3 to −1.5, at every
-radius).
+hemisphere (−0.008), and soft-drop multiplicity in its standard form tracks n₉₀
+radius for radius.  On the beam-energy test the cone is therefore *not* the
+problem; the problems are running with no control at all (+0.277) and
+computing an opening-angle-cut observable in the laboratory (−0.3 to −1.5, at
+every radius).  The summary table and `frame_ladder.pdf` therefore quote the
+lab cone at *R* = 1.2; `ladder_vs_radius.pdf` shows the full scan.
 
 **What this means for the radius scan of Sec. 3.7.**  That scan held *Q* and
 colour-frame energy fixed *within one beam configuration* and varied lab p_T,

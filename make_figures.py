@@ -866,7 +866,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
                     xytext=(6, 0), textcoords="offset points", fontsize=7, color=MUTED, va="center")
     labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
     if rows:
-        beam_marks(ax, rows[len(rows) // 2][3])
+        beam_marks(ax, min(rows, key=lambda r: np.mean([p[1] for p in r[3]]))[3])
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
@@ -874,7 +874,8 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
     ax.set_xlim(0.9, 200)
     range_frame(ax, allx, ally)
-    labels.draw()
+    labels.draw(column=True)
+    q_key(ax)
     med = float(np.median(flat))
     incl_slope = np.polyfit(np.log(xc[ok]), np.log(mu[ok]), 1)[0] if inclusive_path else np.nan
     caption(ax, "Each line is one cell of fixed $(W, Q)$, so fixed colour-frame kinematics, measured "
@@ -906,7 +907,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     caption(ax, "The same cells and beam configurations for the leading anti-$k_T$ jet clustered in the "
                 "laboratory at $R$ = 1.2, the radius EIC studies use: median slope "
                 f"{med_j:+.3f}.  A plain lab cone of sensible size is already frame independent; the "
-                "$R$ = 0.4 of the reference paper is the worst case (see ladder_vs_radius).")
+                "$R$ = 0.4 of the reference paper is the worst case, shown in the radius scan.")
     save(fig, outdir, "beam_energy_labjet")
     results["labjet"] = flat
 
@@ -1030,12 +1031,12 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
         if sd is not None and len(sd):
             sd = np.asarray(sd, float)
             msd = np.median(sd)
-            ax.plot([sd.min(), sd.max()], [y - 0.17, y - 0.17], color=SD, lw=1.0,
+            ax.plot([sd.min(), sd.max()], [y - 0.22, y - 0.22], color=SD, lw=1.0,
                     alpha=0.35, solid_capstyle="butt")
-            ax.plot([msd], [y - 0.17], marker="s", ms=4.5, color=SD, mec="white",
+            ax.plot([msd], [y - 0.22], marker="s", ms=4.5, color=SD, mec="white",
                     mew=0.6, zorder=3)
             txt = f"{msd:+.3f}"
-            ax.annotate(txt, (msd, y - 0.17), xytext=(7, 0),
+            ax.annotate(txt, (msd, y - 0.22), xytext=(7, 0),
                         textcoords="offset points", ha="left", va="center",
                         fontsize=7, color=SD)
     ax.set_yticks(ys)
@@ -1047,11 +1048,11 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     ax.set_xlim(-0.12, 0.36)
     ax.set_xticks([-0.1, 0.0, 0.1, 0.2, 0.3])
     range_frame(ax, np.array([-0.1, 0.3]), None)
-    ax.plot([-0.10], [len(rungs) - 0.42], marker="o", ms=4.5, color=INK, mec="white", mew=0.5)
-    ax.annotate(r"$n_{90}$", (-0.10, len(rungs) - 0.42), xytext=(6, 0),
+    ax.plot([0.20], [len(rungs) - 2.30], marker="o", ms=4.5, color=INK, mec="white", mew=0.5)
+    ax.annotate(r"$n_{90}$", (0.20, len(rungs) - 2.30), xytext=(6, 0),
                 textcoords="offset points", fontsize=7.5, color=INK, va="center")
-    ax.plot([-0.10], [len(rungs) - 0.72], marker="s", ms=4.0, color=SD, mec="white", mew=0.5)
-    ax.annotate(r"$n_{\rm SD}$, standard form", (-0.10, len(rungs) - 0.72), xytext=(6, 0),
+    ax.plot([0.20], [len(rungs) - 2.60], marker="s", ms=4.0, color=SD, mec="white", mew=0.5)
+    ax.annotate(r"$n_{\rm SD}$, standard form", (0.20, len(rungs) - 2.60), xytext=(6, 0),
                 textcoords="offset points", fontsize=7.5, color=SD, va="center")
     ax.annotate("frame independent", (0.0, len(rungs) - 0.45), xytext=(0, 0),
                 textcoords="offset points", ha="center", fontsize=7, color=MUTED)
@@ -1130,17 +1131,19 @@ def fig_ladder_vs_radius(beam_paths, outdir):
     the frame-defined object for reference.  EIC studies normally use R ~ 1.
     """
     SD = "#7a4fa3"
-    xs, y90, ysd = [], [], []
+    xs, y90, ysd, ypp = [], [], [], []
     for tree, R in [("jets_R0p4", 0.4), ("jets_R0p8", 0.8), ("jets_R1p2", 1.2),
                     ("jets_R1p6", 1.6), ("jets_R2p4", 2.4)]:
-        ds = [(l, _load_tree(p, tree, ["W", "Q2", "plab", "n90", "n_sd", "lead", "current"],
+        ds = [(l, _load_tree(p, tree, ["W", "Q2", "plab", "n90", "n_sd", "n_sd_pp", "lead", "current"],
                              lambda d: d["lead"] & d["current"] & np.isfinite(d["n90"])))
               for l, p in beam_paths]
         s90 = _cell_slopes(ds, "W", BEAM_CELLS_W, "n90")
         ssd = _cell_slopes(ds, "W", BEAM_CELLS_W, "n_sd")
+        spp = _cell_slopes(ds, "W", BEAM_CELLS_W, "n_sd_pp")
         if len(s90):
             xs.append(R); y90.append(np.median(s90))
             ysd.append(np.median(ssd) if len(ssd) else np.nan)
+            ypp.append(np.median(spp) if len(spp) else np.nan)
 
     hemi = [(l, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90_cm"],
                            lambda d: np.isfinite(d["n90_cm"]) & (d["plab"] > 1.0)))
@@ -1150,18 +1153,17 @@ def fig_ladder_vs_radius(beam_paths, outdir):
     fig, ax = plt.subplots(figsize=(4.8, 3.3))
     ax.axvspan(0.8, 1.2, color="#3182bd", alpha=0.07, lw=0)
     ax.axhline(0.0, color=FAINT, lw=0.9, zorder=0)
-    ax.axhline(h90, color="#2f6b4f", lw=0.9, ls=(0, (4, 2)), zorder=0)
+    ax.plot([xs[0] - 0.1, xs[-1]], [h90, h90], color="#2f6b4f", lw=0.9, ls=(0, (4, 2)), zorder=0)
     ax.plot(xs, y90, color=INK, lw=1.3, marker="o", ms=4.5, mec="white", mew=0.5)
-    ax.plot(xs, ysd, color=SD, lw=1.3, marker="s", ms=4, mec="white", mew=0.5)
-    ax.annotate("whole current hemisphere", (2.42, h90), xytext=(0, -11),
-                textcoords="offset points", ha="right", fontsize=7, color="#2f6b4f")
-    ax.annotate(r"$n_{90}$", (xs[-1], y90[-1]), xytext=(7, 0), textcoords="offset points",
-                fontsize=8, color=INK, va="center")
-    ax.annotate("$n_{\\rm SD}$, $e^+e^-$ variables\nin the lab", (xs[-1], ysd[-1]), xytext=(7, 0),
-                textcoords="offset points", fontsize=7.5, color=SD, va="center")
-    ax.axhline(-0.016, color=SD, lw=0.9, ls=(0, (2, 2)), zorder=0)
-    ax.annotate("$n_{\\rm SD}$, standard $pp$ variables", (2.42, -0.016), xytext=(0, 5),
-                textcoords="offset points", ha="right", fontsize=7, color=SD)
+    ax.plot(xs, ypp, color=SD, lw=1.3, marker="s", ms=4, mec="white", mew=0.5)
+    ax.plot(xs, ysd, color=SD, lw=1.0, ls=(0, (2, 2)), marker="s", ms=3.5, mec="white", mew=0.5,
+            alpha=0.75)
+    labels = EndLabels(ax, min_sep_pt=11.0, fontsize=7.5)
+    labels.add(xs[-1], y90[-1], r"$n_{90}$, lab cone", INK)
+    labels.add(xs[-1], ypp[-1], r"$n_{\rm SD}$, standard form, lab cone", SD)
+    labels.add(xs[-1], h90, "whole hemisphere, frame momenta", "#2f6b4f")
+    labels.add(xs[-1], ysd[-1], r"$n_{\rm SD}$, $e^+e^-$ form in the lab", SD)
+    labels.draw(column=True)
     ax.annotate("radius EIC studies use", (1.0, 0.085), ha="center", fontsize=7, color=MUTED)
     ax.set_xlabel(r"anti-$k_T$ radius of the lab jet, $R$")
     ax.set_ylabel("frame dependence across beam energies")
@@ -1169,14 +1171,15 @@ def fig_ladder_vs_radius(beam_paths, outdir):
     ax.set_xticks([0.4, 0.8, 1.2, 1.6, 2.4])
     ax.set_xticklabels(["0.4", "0.8", "1.2", "1.6", "2.4"])
     ax.minorticks_off()
-    range_frame(ax, np.array(xs), np.array(y90 + ysd + [0.0]))
+    range_frame(ax, np.array(xs), np.array(y90 + ysd + ypp + [0.0]))
     caption(ax, "Exponent d ln$\\langle\\,\\cdot\\,\\rangle$/d ln$|\\vec p|_{\\rm lab}$ in fixed "
                 "$(W, Q)$ cells across the three beam configurations, against the radius of the "
                 "laboratory cone.  At the radius the EIC community actually uses, a plain lab cone is "
                 "already frame independent for $n_{90}$; the $R$ = 0.4 inherited from the reference "
-                "paper is the worst case.  The soft-drop curve is the $e^+e^-$ form, with an absolute "
-                "opening-angle cut, and no radius rescues it.  Written the standard way, with $p_T$ "
-                "fractions and a rapidity-azimuth distance, it is flat too (dashed).")
+                "paper is the worst case, for $n_{90}$ and for soft-drop multiplicity in its standard "
+                "form alike.  The dotted curve is the $e^+e^-$ form of soft drop, with an absolute "
+                "opening-angle cut applied in the laboratory: no radius rescues it, because the "
+                "problem is the variables, not the cone.")
     save(fig, outdir, "ladder_vs_radius")
     return dict(zip(xs, y90))
 
