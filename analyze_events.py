@@ -83,6 +83,12 @@ SD_ZCUT = 0.1
 SD_BETA = 0.0
 SD_THETA_CUT = 0.1     # rad
 SD_R0 = 1.0            # rad
+# Radius for the e+e- C/A reclustering.  It must exceed pi: at exactly pi a
+# back-to-back pair ties against the beam distance and is never merged, so the
+# declustering finds no branchings at all.  That is the configuration the rest
+# frame of a two-body object always produces.  Only the tree is used, and it is
+# angle-ordered for any radius, so the value is immaterial beyond being > pi.
+SD_R_CLUSTER = 3.5
 
 # Jet finding
 JET_R = 0.4          # anti-kT radius, as in arXiv:2308.10951
@@ -186,8 +192,12 @@ def isd_multiplicity(p4, zcut=SD_ZCUT, beta=SD_BETA, theta_cut=SD_THETA_CUT, R0=
     if n < 2:
         return 0
     pj = [fj.PseudoJet(float(a), float(b), float(c), float(d)) for a, b, c, d in p4]
-    cs = fj.ClusterSequence(pj, fj.JetDefinition(fj.ee_genkt_algorithm, np.pi, 0.0))
-    node = cs.exclusive_jets(1)[0]
+    cs = fj.ClusterSequence(pj, fj.JetDefinition(fj.ee_genkt_algorithm, SD_R_CLUSTER, 0.0))
+    jets = cs.exclusive_jets(1)
+    node = jets[0]
+    if len(node.constituents()) != n:      # everything must land in one tree
+        raise RuntimeError(f"soft-drop reclustering lost constituents: "
+                           f"{len(node.constituents())} of {n}")
     p1, p2 = fj.PseudoJet(), fj.PseudoJet()
     count = 0
     while node.has_parents(p1, p2):
