@@ -868,6 +868,140 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
 
 
 # ---------------------------------------------------------------------------
+# The frame ladder: what is frame independent, and what is not
+# ---------------------------------------------------------------------------
+
+def _cell_slopes(beams, kvar, key_cells, obs, xkey="plab", min_n=BEAM_MIN):
+    """Slope d ln<obs> / d ln x across beam configurations, one per (cell, Q) pair."""
+    out = []
+    for klo, khi in key_cells:
+        for qlo, qhi in BEAM_CELLS_Q:
+            xs, ys = [], []
+            for _, d in beams:
+                Q = np.sqrt(d["Q2"])
+                m = (d[kvar] >= klo) & (d[kvar] < khi) & (Q >= qlo) & (Q < qhi)
+                if m.sum() < min_n:
+                    xs = []
+                    break
+                xs.append(np.median(d[xkey][m])); ys.append(d[obs][m].mean())
+            if xs:
+                out.append(np.polyfit(np.log(xs), np.log(ys), 1)[0])
+    return out
+
+
+def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
+    """
+    One panel: how much lab-frame dependence each choice introduces, from the
+    inclusive measurement down to the fully frame-defined observable.
+    """
+    hemi = [(l, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90", "n90_cm"],
+                           lambda d: np.isfinite(d["n90"]) & np.isfinite(d["n90_cm"]) & (d["plab"] > 1.0)))
+            for l, p in beam_paths]
+    labj = [(l, _load_tree(p, "jets_R0p4", ["W", "Q2", "plab", "n90", "lead", "current"],
+                           lambda d: d["lead"] & d["current"] & np.isfinite(d["n90"])))
+            for l, p in beam_paths]
+    cmj = []
+    for l, p in beam_paths:
+        d = uproot.open(p)["cmjets"].arrays(["e_cm", "Q2", "p_lab", "n90_labmom", "n90_cm"], library="np")
+        d = {"e_hcm": d["e_cm"], "Q2": d["Q2"], "plab": d["p_lab"],
+             "n90": d["n90_labmom"], "n90_cm": d["n90_cm"]}
+        m = np.isfinite(d["n90"]) & np.isfinite(d["n90_cm"])
+        cmj.append((l, {k: v[m] for k, v in d.items()}))
+
+    E_CELLS = [(2.5, 4), (4, 6), (6, 9), (9, 14)]
+    rungs = [
+        ("no control:\nall hemispheres, one beam", [inclusive_slope], ACCENT),
+        ("lab cone $R$ = 0.4\nat fixed $(W, Q)$", _cell_slopes(labj, "W", BEAM_CELLS_W, "n90"), INK),
+        ("whole current hemisphere,\n$n_{90}$ from lab momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n90"), INK),
+        ("$\\gamma^*p$-frame jet,\n$n_{90}$ from lab momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n90"), INK),
+        ("whole current hemisphere,\n$n_{90}$ from frame momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n90_cm"), "#2f6b4f"),
+        ("$\\gamma^*p$-frame jet,\n$n_{90}$ from frame momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n90_cm"), "#2f6b4f"),
+    ]
+    fig, ax = plt.subplots(figsize=(5.0, 3.6))
+    ax.axvline(0.0, color=FAINT, lw=0.9, zorder=0)
+    ys = np.arange(len(rungs))[::-1]
+    for y, (name, sl, col) in zip(ys, rungs):
+        sl = np.asarray(sl, float)
+        med = np.median(sl)
+        if len(sl) > 1:
+            ax.plot([sl.min(), sl.max()], [y, y], color=col, lw=1.0, alpha=0.35,
+                    solid_capstyle="butt")
+            ax.plot(sl, np.full(len(sl), y), marker="|", ls="none", ms=5, color=col, alpha=0.5)
+        ax.plot([med], [y], marker="o", ms=5.5, color=col, mec="white", mew=0.6, zorder=3)
+        ax.annotate(f"{med:+.3f}".replace("+0.000", " 0.000"), (med, y), xytext=(0, 9),
+                    textcoords="offset points", ha="center", fontsize=7.5, color=col)
+    ax.set_yticks(ys)
+    ax.set_yticklabels([r[0] for r in rungs], fontsize=7.5)
+    ax.tick_params(axis="y", length=0)
+    ax.spines["left"].set_visible(False)
+    ax.set_ylim(-0.7, len(rungs) - 0.3)
+    ax.set_xlabel(r"lab-frame dependence,  $\mathrm{d}\ln\langle n_{90}\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
+    ax.set_xlim(-0.11, 0.33)
+    ax.set_xticks([-0.1, 0.0, 0.1, 0.2, 0.3])
+    range_frame(ax, np.array([-0.1, 0.3]), None)
+    ax.annotate("frame independent", (0.0, -0.62), xytext=(0, 0), textcoords="offset points",
+                ha="center", fontsize=7, color=MUTED)
+    caption(ax, "Every rung is the same physics, measured differently.  Ticks are individual "
+                "$(W, Q)$ cells across the 5$\\times$41, 10$\\times$100 and 18$\\times$275 GeV "
+                "configurations, which move the same colour-frame system through lab momenta "
+                "differing by up to a factor of seven; the dot is the median.  Defining the jet by "
+                "the colour rest frame and computing $n_{90}$ from momenta in that frame leaves no "
+                "measurable dependence on the lab.  Each departure from that is a choice made in "
+                "the laboratory, not a property of the fragmentation.")
+    save(fig, outdir, "frame_ladder")
+    return {name.split(chr(10))[0]: float(np.median(sl)) for name, sl, _ in rungs}
+
+
+def fig_beam_ordering(beam_paths, outdir):
+    """Hemisphere at fixed (W, Q): n90 ordered in the lab against ordered in the colour frame."""
+    hemi = [(l, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90", "n90_cm"],
+                           lambda d: np.isfinite(d["n90"]) & np.isfinite(d["n90_cm"]) & (d["plab"] > 1.0)))
+            for l, p in beam_paths]
+    fig, ax = plt.subplots(figsize=(4.8, 3.6))
+    labels = EndLabels(ax, min_sep_pt=8.5, fontsize=7)
+    allx, ally = [], []
+    for iq, (qlo, qhi) in enumerate(BEAM_CELLS_Q):
+        for wlo, whi in BEAM_CELLS_W:
+            xs, yl, yc = [], [], []
+            for _, d in hemi:
+                Q = np.sqrt(d["Q2"])
+                m = (d["W"] >= wlo) & (d["W"] < whi) & (Q >= qlo) & (Q < qhi)
+                if m.sum() < BEAM_MIN:
+                    xs = []
+                    break
+                xs.append(np.median(d["plab"][m]))
+                yl.append(d["n90"][m].mean()); yc.append(d["n90_cm"][m].mean())
+            if not xs:
+                continue
+            xs = np.array(xs)
+            ax.plot(xs, yl, color=INK, lw=1.0, marker=Q_MARKERS[iq], ms=3.2, mec="white", mew=0.4)
+            ax.plot(xs, yc, color="#2f6b4f", lw=1.0, marker=Q_MARKERS[iq], ms=3.2, mec="white", mew=0.4)
+            allx += [xs, xs]; ally += [np.array(yl), np.array(yc)]
+    # one label per family, on the highest line
+    top = max(range(len(ally)), key=lambda i: ally[i].max())
+    labels.add(allx[top], ally[top], "ordered in the colour frame" if top % 2 else "ordered in the lab",
+               "#2f6b4f" if top % 2 else INK)
+    ax.annotate("ordered by lab momenta", (allx[0][-1], ally[0][-1]), xytext=(7, -2),
+                textcoords="offset points", fontsize=7.5, color=INK, va="center")
+    ax.annotate("ordered by colour-frame momenta", (allx[1][-1], ally[1][-1]), xytext=(7, 4),
+                textcoords="offset points", fontsize=7.5, color="#2f6b4f", va="center")
+    ax.set_xscale("log")
+    ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$")
+    ax.set_xlim(0.9, 260)
+    range_frame(ax, np.concatenate(allx), np.concatenate(ally))
+    caption(ax, "The same hemispheres in fixed $(W, Q)$ cells across the three beam configurations, "
+                "with $n_{90}$ built from lab momenta (dark) and from colour-frame momenta (green).  "
+                "The particles are identical; only the frame in which they are ordered differs.  "
+                "Ordering in the lab leaves a residual slope of $-0.050$ because a large boost pushes "
+                "the ordering towards light-cone momentum and concentrates the jet in fewer particles; "
+                "ordering in the colour frame leaves $-0.008$.")
+    save(fig, outdir, "beam_energy_ordering")
+
+
+# ---------------------------------------------------------------------------
 # Figure 2b: the boost factor — same colour-frame jet, different lab boosts
 # ---------------------------------------------------------------------------
 
@@ -1219,6 +1353,14 @@ def main():
             beam_paths.append((lab, path))
         beam_paths.sort(key=lambda t: float(t[0].split("x")[0]) * float(t[0].split("x")[1]))
         res = fig_beam_energy(beam_paths, args.outdir, inclusive_path="10x100")
+        d0 = _load_tree(args.inputs[0], "hemisphere", ["W", "Q2", "plab", "n90"],
+                        lambda d: np.isfinite(d["n90"]) & (d["plab"] > 1.0))
+        xc, mu, se = profile(d0["plab"], d0["n90"], P_HEMI, min_entries=200)
+        ok = np.isfinite(mu)
+        incl = float(np.polyfit(np.log(xc[ok]), np.log(mu[ok]), 1)[0])
+        ladder = fig_frame_ladder(beam_paths, args.outdir, incl)
+        fig_beam_ordering(beam_paths, args.outdir)
+        print("  frame ladder: " + ", ".join(f"{k}={v:+.3f}" for k, v in ladder.items()))
         for k, v in res.items():
             print(f"  beam-energy test, {k}: slope per cell "
                   + ", ".join(f"{x:+.2f}" for x in v) + f"  (median {np.median(v):+.2f})")
