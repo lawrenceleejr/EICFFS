@@ -216,6 +216,51 @@ def isd_multiplicity(p4, zcut=SD_ZCUT, beta=SD_BETA, theta_cut=SD_THETA_CUT, R0=
     return count
 
 
+def isd_pp_multiplicity(p4, zcut=SD_ZCUT, beta=SD_BETA, dr_cut=SD_THETA_CUT, R0=SD_R0):
+    """
+    Iterated soft-drop multiplicity in the standard hadron-collider form:
+    Cambridge/Aachen in rapidity-azimuth about the beam axis, z from transverse
+    momenta, angular distance ΔR.  Invariant under boosts along the beam, which
+    at EIC kinematics is close to the boost that relates the laboratory to the
+    γ*p frame, so it can be evaluated on laboratory momenta as they are.
+    """
+    import fastjet as fj
+    n = len(p4)
+    if n < 2:
+        return 0
+    pj = [fj.PseudoJet(float(a), float(b), float(c), float(d)) for a, b, c, d in p4]
+    cs = fj.ClusterSequence(pj, fj.JetDefinition(fj.cambridge_algorithm, 100.0))
+    node = cs.exclusive_jets(1)[0]
+    if len(node.constituents()) != n:
+        raise RuntimeError("soft-drop reclustering lost constituents")
+    p1, p2 = fj.PseudoJet(), fj.PseudoJet()
+    count = 0
+    while node.has_parents(p1, p2):
+        a, b = fj.PseudoJet(p1), fj.PseudoJet(p2)
+        if a.pt() <= 0 or b.pt() <= 0:
+            break
+        dr = a.delta_R(b)
+        z = min(a.pt(), b.pt()) / (a.pt() + b.pt())
+        if dr > dr_cut and z > zcut * (dr / R0) ** beta:
+            count += 1
+        node = a if a.pt() >= b.pt() else b
+    return count
+
+
+def isd_pp_segments(p4, seg_id, n_seg, **kw):
+    """Standard-form soft-drop multiplicity for many objects sharing one flat array."""
+    out = np.zeros(n_seg, dtype=np.int32)
+    if len(p4) == 0:
+        return out
+    order = np.argsort(seg_id, kind="stable")
+    p, s = p4[order], seg_id[order]
+    counts = np.bincount(s, minlength=n_seg)
+    starts = np.concatenate([[0], np.cumsum(counts)[:-1]])
+    for i in np.where(counts >= 2)[0]:
+        out[i] = isd_pp_multiplicity(p[starts[i]:starts[i] + counts[i]], **kw)
+    return out
+
+
 def isd_rest_segments(p4, seg_id, n_seg, **kw):
     """
     Iterated soft-drop multiplicity computed in each object's *own* rest frame.
@@ -465,11 +510,13 @@ def lab_jets_at_radius(parts, charge, R, L_hcm, L_breit, qhat_breit, n_ev,
         "n_charged": n_charged.astype(np.int32),
         "n90": n_x_segments(c_p, jet_of_c, n_j),
         "n_sd": _isd_for_subset(C_lab, jet_of_c, n_j, lead),
+        "n_sd_pp": _isd_for_subset(C_lab, jet_of_c, n_j, lead, fn=isd_pp_segments),
     }
 
 
-def _isd_for_subset(C, jet_of_c, n_j, mask):
+def _isd_for_subset(C, jet_of_c, n_j, mask, fn=None):
     """Iterated soft-drop multiplicity, computed only for objects in ``mask``."""
+    fn = fn or isd_segments
     out = np.full(n_j, -1, dtype=np.int32)
     if not mask.any():
         return out
@@ -477,7 +524,7 @@ def _isd_for_subset(C, jet_of_c, n_j, mask):
     remap = np.full(n_j, -1)
     idx = np.where(mask)[0]
     remap[idx] = np.arange(len(idx))
-    out[idx] = isd_segments(C[keep], remap[jet_of_c[keep]], len(idx))
+    out[idx] = fn(C[keep], remap[jet_of_c[keep]], len(idx))
     return out
 
 
@@ -507,6 +554,7 @@ def current_hemisphere(A, A_cm, A_breit, qhat_breit, ev_of_par, charge_flat, n_e
         "n_sd": isd_segments(A[cur], ev_of_par[cur], n_ev),
         "n_sd_cm": isd_segments(A_cm[cur], ev_of_par[cur], n_ev),
         "n_sd_rest": isd_rest_segments(A[cur], ev_of_par[cur], n_ev),
+        "n_sd_pp": isd_pp_segments(A[cur], ev_of_par[cur], n_ev),
     }
 
 
@@ -668,6 +716,7 @@ def analyze_chunk(events, use_fastjet=True):
         "n_sd_cm": isd_segments(A_cm[gidx], cj_of_c, n_cj),
         "n_sd_lab": isd_segments(A[gidx], cj_of_c, n_cj),
         "n_sd_rest": isd_rest_segments(A[gidx], cj_of_c, n_cj),
+        "n_sd_pp": isd_pp_segments(A[gidx], cj_of_c, n_cj),
     }
 
     ev_out = {
