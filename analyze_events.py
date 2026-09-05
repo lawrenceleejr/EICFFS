@@ -61,7 +61,7 @@ vector.register_awkward()
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.dis_kinematics import (hcm_boost_matrix, breit_boost_matrix,
-                                  apply_boost, rapidity)
+                                  apply_boost, rapidity, rest_frame_boost_matrix)
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +204,33 @@ def isd_multiplicity(p4, zcut=SD_ZCUT, beta=SD_BETA, theta_cut=SD_THETA_CUT, R0=
             count += 1
         node = a if a.e() >= b.e() else b
     return count
+
+
+def isd_rest_segments(p4, seg_id, n_seg, **kw):
+    """
+    Iterated soft-drop multiplicity computed in each object's *own* rest frame.
+
+    An angular cut is only meaningful relative to some frame, and an object that
+    moves in the frame where the cut is applied is collimated by its own boost.
+    Boosting to the object's rest frame first removes that, leaving a counter
+    that responds to the fragmentation pattern rather than to the boost.
+    """
+    out = np.zeros(n_seg, dtype=np.int32)
+    if len(p4) == 0:
+        return out
+    order = np.argsort(seg_id, kind="stable")
+    p, sid = p4[order], seg_id[order]
+    counts = np.bincount(sid, minlength=n_seg)
+    starts = np.concatenate([[0], np.cumsum(counts)[:-1]])
+    tot = np.zeros((n_seg, 4))
+    for k in range(4):
+        tot[:, k] = np.bincount(sid, weights=p[:, k], minlength=n_seg)
+    m2 = tot[:, 3]**2 - np.sum(tot[:, :3]**2, axis=1)
+    for i in np.where((counts >= 2) & (m2 > 1e-9))[0]:
+        L = rest_frame_boost_matrix(tot[i][None, :])[0]
+        block = p[starts[i]:starts[i] + counts[i]]
+        out[i] = isd_multiplicity((L @ block.T).T, **kw)
+    return out
 
 
 def isd_segments(p4, seg_id, n_seg, **kw):
@@ -469,6 +496,7 @@ def current_hemisphere(A, A_cm, A_breit, qhat_breit, ev_of_par, charge_flat, n_e
         "n90_cm": n_x_segments(np.linalg.norm(A_cm[cur][:, :3], axis=1), ev_of_par[cur], n_ev),
         "n_sd": isd_segments(A[cur], ev_of_par[cur], n_ev),
         "n_sd_cm": isd_segments(A_cm[cur], ev_of_par[cur], n_ev),
+        "n_sd_rest": isd_rest_segments(A[cur], ev_of_par[cur], n_ev),
     }
 
 
@@ -629,6 +657,7 @@ def analyze_chunk(events, use_fastjet=True):
         # iterated soft-drop multiplicity of the same constituents, in each frame
         "n_sd_cm": isd_segments(A_cm[gidx], cj_of_c, n_cj),
         "n_sd_lab": isd_segments(A[gidx], cj_of_c, n_cj),
+        "n_sd_rest": isd_rest_segments(A[gidx], cj_of_c, n_cj),
     }
 
     ev_out = {
