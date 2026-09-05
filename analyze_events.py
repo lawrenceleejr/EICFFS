@@ -75,6 +75,15 @@ NMAX = 60
 N90_MAX = 25.0
 N90_BINS = 50
 
+# Iterated soft-drop multiplicity (Frye, Larkoski, Thaler, Zhou, arXiv:1704.06266)
+# e+e- style: Cambridge/Aachen in opening angle, then walk the hardest branch
+# counting branchings with z > ZCUT (theta/R0)^BETA and theta > THETA_CUT.
+# Unlike n_x this is collinear safe: a splitting below THETA_CUT is never counted.
+SD_ZCUT = 0.1
+SD_BETA = 0.0
+SD_THETA_CUT = 0.1     # rad
+SD_R0 = 1.0            # rad
+
 # Jet finding
 JET_R = 0.4          # anti-kT radius, as in arXiv:2308.10951
 JET_ETA_MAX = 3.5    # EIC central-detector acceptance (lab)
@@ -158,6 +167,56 @@ def n_x_segments(pmag, seg_id, n_seg, threshold=0.90):
     cf_prev = np.where(first > 0, cumfrac[np.maximum(st + first - 1, 0)], 0.0)
     denom = np.where(cf_idx - cf_prev > 0, cf_idx - cf_prev, 1.0)
     out[nonempty] = first + (threshold - cf_prev) / denom
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Iterated soft-drop multiplicity
+# ---------------------------------------------------------------------------
+
+def isd_multiplicity(p4, zcut=SD_ZCUT, beta=SD_BETA, theta_cut=SD_THETA_CUT, R0=SD_R0):
+    """
+    Iterated soft-drop multiplicity of one object from its constituent
+    four-vectors ``p4`` (n, 4) = (px, py, pz, E), in whatever frame they are given.
+
+    Returns 0 for objects with fewer than two constituents.
+    """
+    import fastjet as fj
+    n = len(p4)
+    if n < 2:
+        return 0
+    pj = [fj.PseudoJet(float(a), float(b), float(c), float(d)) for a, b, c, d in p4]
+    cs = fj.ClusterSequence(pj, fj.JetDefinition(fj.ee_genkt_algorithm, np.pi, 0.0))
+    node = cs.exclusive_jets(1)[0]
+    p1, p2 = fj.PseudoJet(), fj.PseudoJet()
+    count = 0
+    while node.has_parents(p1, p2):
+        a, b = fj.PseudoJet(p1), fj.PseudoJet(p2)
+        va = np.array([a.px(), a.py(), a.pz()])
+        vb = np.array([b.px(), b.py(), b.pz()])
+        na, nb = np.linalg.norm(va), np.linalg.norm(vb)
+        if na <= 0 or nb <= 0:
+            break
+        theta = float(np.arccos(np.clip(np.dot(va, vb) / (na * nb), -1.0, 1.0)))
+        etot = a.e() + b.e()
+        z = min(a.e(), b.e()) / etot if etot > 0 else 0.0
+        if theta > theta_cut and z > zcut * (theta / R0) ** beta:
+            count += 1
+        node = a if a.e() >= b.e() else b
+    return count
+
+
+def isd_segments(p4, seg_id, n_seg, **kw):
+    """Iterated soft-drop multiplicity for many objects sharing one flat array."""
+    out = np.zeros(n_seg, dtype=np.int32)
+    if len(p4) == 0:
+        return out
+    order = np.argsort(seg_id, kind="stable")
+    p, s = p4[order], seg_id[order]
+    counts = np.bincount(s, minlength=n_seg)
+    starts = np.concatenate([[0], np.cumsum(counts)[:-1]])
+    for i in np.where(counts >= 2)[0]:
+        out[i] = isd_multiplicity(p[starts[i]:starts[i] + counts[i]], **kw)
     return out
 
 
@@ -348,8 +407,9 @@ def lab_jets_at_radius(parts, charge, R, L_hcm, L_breit, qhat_breit, n_ev,
     n_const = ak.to_numpy(ak.num(c_flat))
     n_charged = ak.to_numpy(ak.sum(ak.flatten(cch, axis=1) != 0, axis=1))
     jet_of_c = np.repeat(np.arange(n_j), n_const)
-    c_p = np.sqrt(ak.to_numpy(ak.flatten(c_flat.px))**2 + ak.to_numpy(ak.flatten(c_flat.py))**2
-                  + ak.to_numpy(ak.flatten(c_flat.pz))**2)
+    C_lab = np.stack([ak.to_numpy(ak.flatten(c_flat[c])) for c in ("px", "py", "pz", "E")],
+                     axis=1).astype(float)
+    c_p = np.linalg.norm(C_lab[:, :3], axis=1)
     p_lab = np.linalg.norm(J[:, :3], axis=1)
     captured = (p_lab / np.maximum(hemi_p[ev_of_jet], 1e-9)
                 if hemi_p is not None else np.full(n_j, np.nan))
@@ -367,7 +427,21 @@ def lab_jets_at_radius(parts, charge, R, L_hcm, L_breit, qhat_breit, n_ev,
         "current": current, "n_const": n_const.astype(np.int32),
         "n_charged": n_charged.astype(np.int32),
         "n90": n_x_segments(c_p, jet_of_c, n_j),
+        "n_sd": _isd_for_subset(C_lab, jet_of_c, n_j, lead),
     }
+
+
+def _isd_for_subset(C, jet_of_c, n_j, mask):
+    """Iterated soft-drop multiplicity, computed only for objects in ``mask``."""
+    out = np.full(n_j, -1, dtype=np.int32)
+    if not mask.any():
+        return out
+    keep = mask[jet_of_c]
+    remap = np.full(n_j, -1)
+    idx = np.where(mask)[0]
+    remap[idx] = np.arange(len(idx))
+    out[idx] = isd_segments(C[keep], remap[jet_of_c[keep]], len(idx))
+    return out
 
 
 def current_hemisphere(A, A_cm, A_breit, qhat_breit, ev_of_par, charge_flat, n_ev, W, Q2):
@@ -393,6 +467,8 @@ def current_hemisphere(A, A_cm, A_breit, qhat_breit, ev_of_par, charge_flat, n_e
         "n_charged": np.bincount(ev_of_par[cur & (charge_flat != 0)], minlength=n_ev).astype(np.int32),
         "n90": n_x_segments(np.linalg.norm(A[cur][:, :3], axis=1), ev_of_par[cur], n_ev),
         "n90_cm": n_x_segments(np.linalg.norm(A_cm[cur][:, :3], axis=1), ev_of_par[cur], n_ev),
+        "n_sd": isd_segments(A[cur], ev_of_par[cur], n_ev),
+        "n_sd_cm": isd_segments(A_cm[cur], ev_of_par[cur], n_ev),
     }
 
 
@@ -550,6 +626,9 @@ def analyze_chunk(events, use_fastjet=True):
         # n90 from the same constituents, ordered by colour-frame and by lab momentum
         "n90_cm": n_x_segments(cc_p_cm, cj_of_c, n_cj),
         "n90_labmom": n_x_segments(cc_p_lab, cj_of_c, n_cj),
+        # iterated soft-drop multiplicity of the same constituents, in each frame
+        "n_sd_cm": isd_segments(A_cm[gidx], cj_of_c, n_cj),
+        "n_sd_lab": isd_segments(A[gidx], cj_of_c, n_cj),
     }
 
     ev_out = {
