@@ -235,11 +235,64 @@ def clearest_row(rows):
     return best
 
 
+def beam_marks_auto(ax, rows, extra_xy=None):
+    """
+    Name the beam configurations under (or over) whichever cell line leaves the
+    names clear of every other line: candidates are tried with the real renderer
+    and the one whose text boxes meet the fewest line samples wins.
+    """
+    fig = ax.figure
+    fig.canvas.draw()
+    per_row = []                      # line samples of each row, in display coordinates
+    for r in rows:
+        xs = np.array([p[0] for p in r[3]]); ys = np.array([p[1] for p in r[3]])
+        seg = []
+        for i in range(len(xs) - 1):
+            t = np.linspace(0, 1, 12)
+            seg.append(np.column_stack([xs[i] + t * (xs[i + 1] - xs[i]), ys[i] + t * (ys[i + 1] - ys[i])]))
+        per_row.append(ax.transData.transform(np.vstack(seg)) if seg else np.zeros((0, 2)))
+    extra = np.zeros((0, 2))
+    if extra_xy is not None and len(extra_xy[0]) > 1:
+        ex, ey = extra_xy
+        seg = []
+        for i in range(len(ex) - 1):
+            t = np.linspace(0, 1, 12)
+            seg.append(np.column_stack([ex[i] + t * (ex[i + 1] - ex[i]), ey[i] + t * (ey[i + 1] - ey[i])]))
+        extra = ax.transData.transform(np.vstack(seg))
+    if not per_row:
+        return
+    all_pts = np.vstack(per_row)
+    y_floor = all_pts[:, 1].min() - 2.0    # text should not drop below the data
+    rend = fig.canvas.get_renderer()
+    obstacles = [t.get_window_extent(rend) for t in ax.texts if t.get_text()]
+    obstacles += [t.get_window_extent(rend) for t in ax.get_xticklabels() + ax.get_yticklabels()
+                  if t.get_text()]
+    best, best_n = None, None
+    for k, r in enumerate(rows):
+        others = np.vstack([p for j, p in enumerate(per_row) if j != k] + [extra])
+        for dy in (-12, 9):
+            arts = beam_marks(ax, r[3], dy=dy)
+            n_hit = 0
+            for a in arts:
+                bb = a.get_window_extent(rend).expanded(1.15, 1.3)
+                inside = (others[:, 0] >= bb.x0) & (others[:, 0] <= bb.x1) & (others[:, 1] >= bb.y0) & (others[:, 1] <= bb.y1)
+                n_hit += int(inside.sum())
+                n_hit += 50 * sum(bb.overlaps(o) for o in obstacles)
+                n_hit += 50 * (bb.y0 < y_floor)
+            for a in arts:
+                a.remove()
+            if best_n is None or n_hit < best_n:
+                best, best_n = (r[3], dy), n_hit
+    beam_marks(ax, best[0], dy=best[1])
+
+
 def beam_marks(ax, pts, dy=-12):
     """Name the three beam configurations under the points of one cell."""
+    arts = []
     for x, y, _, lab in pts:
-        ax.annotate(lab.replace("x", "$\\times$"), (x, y), xytext=(0, dy),
-                    textcoords="offset points", fontsize=6.5, color=MUTED, ha="center")
+        arts.append(ax.annotate(lab.replace("x", "$\\times$"), (x, y), xytext=(0, dy),
+                                textcoords="offset points", fontsize=6.5, color=MUTED, ha="center"))
+    return arts
 
 
 def caption(ax, text, fontsize=7.5):
@@ -841,7 +894,7 @@ def _load_tree(path, tree, cols, sel_fn):
     return {k: v[m] for k, v in d.items()}
 
 
-def _beam_cells(beams, xkey="plab", ecm_cells=False):
+def _beam_cells(beams, xkey="plab", ecm_cells=False, obs="n90"):
     """
     For each (W or E_cm, Q) cell and each beam: median lab momentum, <n90>, sem.
     Returns list of (cell label, W index, Q index, [(x, y, e, beam label), ...]).
@@ -858,7 +911,7 @@ def _beam_cells(beams, xkey="plab", ecm_cells=False):
                 if m.sum() < BEAM_MIN:
                     pts = []
                     break
-                v = d["n90"][m]
+                v = d[obs][m]
                 pts.append((np.median(d[xkey][m]), v.mean(), v.std(ddof=1) / np.sqrt(len(v)), label))
             if len(pts) == len(beams):
                 name = (rf"$E_{{\rm cm}}$ {wlo:g}$-${whi:g}, $Q$ {qlo:g}$-${qhi:g}" if ecm_cells
@@ -903,8 +956,6 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         ax.annotate(f"all hemispheres, {inclusive_path}", (xc[ok][-1], mu[ok][-1]),
                     xytext=(6, 0), textcoords="offset points", fontsize=7, color=MUTED, va="center")
     labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
-    if rows:
-        beam_marks(ax, min(rows, key=lambda r: np.mean([p[1] for p in r[3]]))[3])
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
@@ -914,6 +965,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     range_frame(ax, allx, ally)
     labels.draw(column=True)
     q_key(ax)
+    beam_marks_auto(ax, rows)
     med = float(np.median(flat))
     incl_slope = np.polyfit(np.log(xc[ok]), np.log(mu[ok]), 1)[0] if inclusive_path else np.nan
     caption(ax, "Each line is one cell of fixed $(W, Q)$, so fixed colour-frame kinematics, measured "
@@ -936,8 +988,6 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         d = beams_j[[l for l, _ in beam_paths].index(inclusive_path)][1]
         incl_j = inclusive_curve(ax, d["plab"], d["n90"], f"all lab jets, {inclusive_path}", P_HEMI)
     labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
-    if rows:
-        beam_marks(ax, min(rows, key=lambda r: np.mean([p[1] for p in r[3]]))[3])
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
@@ -947,6 +997,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     range_frame(ax, allx, ally)
     labels.draw(column=True)
     q_key(ax)
+    beam_marks_auto(ax, rows)
     med_j = float(np.median(flat))
     caption(ax, "The same cells and beam configurations for the leading anti-$k_T$ jet clustered in the "
                 "laboratory at $R$ = 1.2, the radius EIC studies use: median slope "
@@ -955,6 +1006,38 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
                 "paper is the worst case, shown in the radius scan.")
     save(fig, outdir, "beam_energy_labjet")
     results["labjet"] = flat
+
+    # -- the same lab jet, IRC-safe: soft-drop multiplicity in its standard form --
+    beams_s = [(lab, _load_tree(p, "jets_R1p2", ["W", "Q2", "plab", "n_sd_pp", "lead", "current"],
+                                lambda d: d["lead"] & d["current"] & (d["n_sd_pp"] >= 0)))
+               for lab, p in beam_paths]
+    rows = _beam_cells(beams_s, obs="n_sd_pp")
+    if rows:
+        fig, ax = plt.subplots(figsize=(4.8, 3.8))
+        incl_s = np.nan
+        if inclusive_path:
+            d = beams_s[[l for l, _ in beam_paths].index(inclusive_path)][1]
+            incl_s = inclusive_curve(ax, d["plab"], d["n_sd_pp"], f"all lab jets, {inclusive_path}", P_HEMI)
+        labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
+        ax.set_xscale("log")
+        ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
+        ax.minorticks_off()
+        ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the leading lab jet, $R$ = 1.2  [GeV]")
+        ax.set_ylabel(r"$\langle n_{\rm SD}\rangle$, standard form")
+        ax.set_xlim(0.9, 200)
+        range_frame(ax, allx, ally)
+        labels.draw(column=True)
+        q_key(ax)
+        beam_marks_auto(ax, rows)
+        med_s = float(np.median(flat))
+        caption(ax, "The same leading $R$ = 1.2 lab jets, now with the IRC-safe iterated soft-drop "
+                    "multiplicity in its standard hadron-collider form ($p_T$ fractions, rapidity-azimuth "
+                    "distance, $z_{\\rm cut}$ = 0.1, $\\Delta R_{\\rm cut}$ = 0.1), evaluated on laboratory "
+                    f"momenta as they are: median slope {med_s:+.3f} across the beam configurations, "
+                    f"against {incl_s:+.2f} for the inclusive curve (grey).  No boost, no cone tuning, "
+                    "and an observable a calculation can be compared to.")
+        save(fig, outdir, "beam_energy_labjet_sd")
+        results["labjet_sd"] = flat
 
     # -- gamma*p-frame jets at fixed (E_cm, Q) ------------------------------
     def _cm(d):
@@ -975,9 +1058,6 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
             d = beams_c[[l for l, _ in beam_paths].index(inclusive_path)][1]
             incl_c = inclusive_curve(ax, d["plab"], d["n90"],
                                      rf"all $\gamma^*p$-frame jets, {inclusive_path}", P_HEMI, labels)
-        if rows:   # the lowest line sits on the axis, so name the beams where there is room
-            pts, dy = clearest_row(rows)
-            beam_marks(ax, pts, dy=dy)
         ax.set_xscale("log")
         ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
         ax.minorticks_off()
@@ -987,6 +1067,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         range_frame(ax, allx, ally)
         labels.draw(column=True)
         q_key(ax)
+        beam_marks_auto(ax, rows)
         med_c = float(np.median(flat))
         caption(ax, "Jets clustered in the colour rest frame with $n_{90}$ computed from their lab "
                     "momenta, in cells of fixed jet energy in that frame and fixed $Q$, across the three "

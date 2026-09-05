@@ -228,6 +228,7 @@ following Tufte: range frames, direct labels, no grids or legends.
 | `beam_energy_sd_ee.pdf`, `beam_energy_sd_standard.pdf` | hemisphere n_SD across beam configurations in the e⁺e⁻ form (collapses) and the standard pp form (flat), same vertical span (from `sd_frame_test.py`) |
 | `beam_energy_ordering.pdf` | the same hemispheres ordered by lab and by colour-frame momenta |
 | `beam_energy_hemisphere.pdf`, `beam_energy_cmjet.pdf`, `beam_energy_labjet.pdf` | fixed (*W*, *Q*) cells across 5×41, 10×100 and 18×275 GeV: same physics, three lab frames, for the hemisphere, the γ*p-frame jet and the *R* = 1.2 lab jet (needs `--beams`) |
+| `beam_energy_labjet_sd.pdf` | the *R* = 1.2 lab-jet panel for standard-form n_SD: IRC safe, lab momenta, flat |
 | `hemisphere_vs_p.pdf`, `hemisphere_vs_p_fixed_q.pdf` | whole current hemisphere against full lab momentum, inclusive and sliced in *E*_cm, then at fixed *Q* |
 | `hemisphere_p_vs_q.pdf` | at fixed *W* the current system's lab momentum is a function of *Q*: no independent boost knob |
 | `slope_vs_radius.pdf` | residual lab-p_T dependence at fixed *Q* and *E*_cm against jet radius |
