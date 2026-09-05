@@ -185,6 +185,25 @@ class EndLabels:
                                  va="center", ha="left", fontsize=self.fs, color=color)
 
 
+def inclusive_curve(ax, x, y, text, edges, labels=None):
+    """
+    The no-control profile of one beam configuration, as a faint background line.
+    With ``labels`` the name joins the line-end label column instead of sitting
+    at the curve's end.
+    """
+    xc, mu, se = profile(x, y, edges, min_entries=200)
+    ok = np.isfinite(mu)
+    if ok.sum() < 2:
+        return np.nan
+    ax.plot(xc[ok], mu[ok], color=FAINT, lw=2.4, zorder=0)
+    if labels is not None:
+        labels.add(xc[ok][-1], mu[ok][-1], text, MUTED)
+    else:
+        ax.annotate(text, (xc[ok][-1], mu[ok][-1]), xytext=(6, 0), textcoords="offset points",
+                    fontsize=7, color=MUTED, va="center")
+    return float(np.polyfit(np.log(xc[ok]), np.log(mu[ok]), 1)[0])
+
+
 def q_key(ax, y=1.03):
     """Explain the marker shapes that encode the Q bin, above the axes."""
     x = 0.0
@@ -893,7 +912,13 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
                for lab, p in beam_paths]
     rows = _beam_cells(beams_j)
     fig, ax = plt.subplots(figsize=(4.8, 3.8))
+    incl_j = np.nan
+    if inclusive_path:
+        d = beams_j[[l for l, _ in beam_paths].index(inclusive_path)][1]
+        incl_j = inclusive_curve(ax, d["plab"], d["n90"], f"all lab jets, {inclusive_path}", P_HEMI)
     labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
+    if rows:
+        beam_marks(ax, min(rows, key=lambda r: np.mean([p[1] for p in r[3]]))[3])
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
@@ -906,8 +931,9 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     med_j = float(np.median(flat))
     caption(ax, "The same cells and beam configurations for the leading anti-$k_T$ jet clustered in the "
                 "laboratory at $R$ = 1.2, the radius EIC studies use: median slope "
-                f"{med_j:+.3f}.  A plain lab cone of sensible size is already frame independent; the "
-                "$R$ = 0.4 of the reference paper is the worst case, shown in the radius scan.")
+                f"{med_j:+.3f}, against {incl_j:+.2f} for the inclusive curve (grey).  A plain lab "
+                "cone of sensible size is already frame independent; the $R$ = 0.4 of the reference "
+                "paper is the worst case, shown in the radius scan.")
     save(fig, outdir, "beam_energy_labjet")
     results["labjet"] = flat
 
@@ -925,6 +951,13 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     if rows:
         fig, ax = plt.subplots(figsize=(4.8, 3.8))
         labels, allx, ally, flat = _draw_beam_rows(ax, rows, E_COLORS)
+        incl_c = np.nan
+        if inclusive_path:
+            d = beams_c[[l for l, _ in beam_paths].index(inclusive_path)][1]
+            incl_c = inclusive_curve(ax, d["plab"], d["n90"],
+                                     rf"all $\gamma^*p$-frame jets, {inclusive_path}", P_HEMI, labels)
+        if rows:   # the lowest line sits on the axis, so name the beams above the highest one
+            beam_marks(ax, max(rows, key=lambda r: np.mean([p[1] for p in r[3]]))[3], dy=9)
         ax.set_xscale("log")
         ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
         ax.minorticks_off()
@@ -937,7 +970,8 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         med_c = float(np.median(flat))
         caption(ax, "Jets clustered in the colour rest frame with $n_{90}$ computed from their lab "
                     "momenta, in cells of fixed jet energy in that frame and fixed $Q$, across the three "
-                    f"beam configurations: median slope {med_c:+.2f}.")
+                    f"beam configurations: median slope {med_c:+.2f}, against {incl_c:+.2f} for the "
+                    "inclusive curve (grey).")
         save(fig, outdir, "beam_energy_cmjet")
         results["cmjet"] = flat
     return results
@@ -1125,7 +1159,7 @@ def fig_frame_breakers(beam_paths, outdir, inclusive_slope):
     save(fig, outdir, "frame_breakers")
 
 
-def fig_ladder_vs_radius(beam_paths, outdir):
+def fig_ladder_vs_radius(beam_paths, outdir, inclusive_slope=np.nan):
     """
     Beam-energy frame dependence of a laboratory cone against its radius, with
     the frame-defined object for reference.  EIC studies normally use R ~ 1.
@@ -1153,6 +1187,9 @@ def fig_ladder_vs_radius(beam_paths, outdir):
     fig, ax = plt.subplots(figsize=(4.8, 3.3))
     ax.axvspan(0.8, 1.2, color="#3182bd", alpha=0.07, lw=0)
     ax.axhline(0.0, color=FAINT, lw=0.9, zorder=0)
+    if np.isfinite(inclusive_slope):
+        ax.plot([xs[0] - 0.1, xs[-1]], [inclusive_slope] * 2, color=ACCENT, lw=0.9,
+                ls=(0, (4, 2)), zorder=0)
     ax.plot([xs[0] - 0.1, xs[-1]], [h90, h90], color="#2f6b4f", lw=0.9, ls=(0, (4, 2)), zorder=0)
     ax.plot(xs, y90, color=INK, lw=1.3, marker="o", ms=4.5, mec="white", mew=0.5)
     ax.plot(xs, ypp, color=SD, lw=1.3, marker="s", ms=4, mec="white", mew=0.5)
@@ -1163,6 +1200,8 @@ def fig_ladder_vs_radius(beam_paths, outdir):
     labels.add(xs[-1], ypp[-1], r"$n_{\rm SD}$, standard form, lab cone", SD)
     labels.add(xs[-1], h90, "whole hemisphere, frame momenta", "#2f6b4f")
     labels.add(xs[-1], ysd[-1], r"$n_{\rm SD}$, $e^+e^-$ form in the lab", SD)
+    if np.isfinite(inclusive_slope):
+        labels.add(xs[-1], inclusive_slope, "no $(W, Q)$ control, all hemispheres", ACCENT)
     labels.draw(column=True)
     ax.annotate("radius EIC studies use", (1.0, 0.085), ha="center", fontsize=7, color=MUTED)
     ax.set_xlabel(r"anti-$k_T$ radius of the lab jet, $R$")
@@ -1171,7 +1210,7 @@ def fig_ladder_vs_radius(beam_paths, outdir):
     ax.set_xticks([0.4, 0.8, 1.2, 1.6, 2.4])
     ax.set_xticklabels(["0.4", "0.8", "1.2", "1.6", "2.4"])
     ax.minorticks_off()
-    range_frame(ax, np.array(xs), np.array(y90 + ysd + ypp + [0.0]))
+    range_frame(ax, np.array(xs), np.array(y90 + ysd + ypp + [0.0] + ([inclusive_slope] if np.isfinite(inclusive_slope) else [])))
     caption(ax, "Exponent d ln$\\langle\\,\\cdot\\,\\rangle$/d ln$|\\vec p|_{\\rm lab}$ in fixed "
                 "$(W, Q)$ cells across the three beam configurations, against the radius of the "
                 "laboratory cone.  At the radius the EIC community actually uses, a plain lab cone is "
@@ -1643,7 +1682,7 @@ def main():
         ladder = fig_frame_ladder(beam_paths, args.outdir, incl)
         fig_beam_ordering(beam_paths, args.outdir)
         fig_beam_sd(beam_paths, args.outdir)
-        byR = fig_ladder_vs_radius(beam_paths, args.outdir)
+        byR = fig_ladder_vs_radius(beam_paths, args.outdir, incl)
         fig_frame_breakers(beam_paths, args.outdir, incl)
         print("  ladder vs radius (n90): " + ", ".join(f"R={k}:{v:+.3f}" for k, v in byR.items()))
         print("  frame ladder: " + ", ".join(f"{k}={v:+.3f}" for k, v in ladder.items()))

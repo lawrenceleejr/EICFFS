@@ -162,8 +162,9 @@ ordering effect is specific to wide objects.
 
 Repeating the identical cell comparison with the leading anti-kT jet clustered
 in the laboratory at *R* = 1.2, the radius EIC studies use, gives a median
-exponent of +0.011 (`beam_energy_labjet.pdf`): a plain lab cone of sensible
-size is already frame independent.  At the *R* = 0.4 of the reference paper the
+exponent of +0.011, against +0.22 for the inclusive lab-jet curve drawn behind
+the cells (`beam_energy_labjet.pdf`): a plain lab cone of sensible size is
+already frame independent.  At the *R* = 0.4 of the reference paper the
 exponent is +0.038, ranging to +0.14, with the lowest-energy configuration
 breaking away in the higher-*Q* cells (`ladder_vs_radius.pdf`).  The cause is
 direct: a fixed small cone does not hold a fixed share of the current system.  At *Q* = 5–7.5 GeV the leading current jet
