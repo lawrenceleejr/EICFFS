@@ -210,6 +210,9 @@ following Tufte: range frames, direct labels, no grids or legends.
 | `flat_cmjets.pdf` | **Primary result**: ⟨n₉₀⟩ of colour-frame jets vs *p*_T^lab, sliced in *E*_cm — flat |
 | `flat_labjets.pdf` | the same test for lab jets — the slices collapse and rise, spanning 85 % |
 | `universal_cm.pdf` | ⟨n₉₀⟩ vs *E*_cm sliced in *p*_T^lab — one curve |
+| `slope_vs_radius.pdf` | residual lab-p_T dependence at fixed *Q* and *E*_cm against jet radius |
+| `fixed_q_R04.pdf`, `fixed_q_hemisphere.pdf` | at fixed *Q*: an *R* = 0.4 cone stays sloped, the whole hemisphere goes flat |
+| `capture_fraction.pdf` | fraction of the current system a lab cone holds, against lab *p*_T |
 | `pt_fan.pdf` | lab jets vs *p*_T^lab sliced in *W* — the fan nearly closes |
 | `ffs_fan.pdf` | ⟨n₉₀⟩ vs \|p\|_lab: ⟨n₉₀⟩ vs \|p\|_lab, one line per *W* slice |
 | `ffs_boost_factor.pdf` | ⟨n₉₀⟩ vs \|p\|_lab / \|p\|_cm: the same colour-frame jet under different boosts |

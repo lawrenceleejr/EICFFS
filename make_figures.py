@@ -402,6 +402,187 @@ def fig_pt_fan(jets, outdir):
 
 
 # ---------------------------------------------------------------------------
+# Radius scan: how much of the current system does a lab cone hold?
+# ---------------------------------------------------------------------------
+
+R_TREES = [("jets_R0p4", 0.4), ("jets_R0p8", 0.8), ("jets_R1p2", 1.2),
+           ("jets_R1p6", 1.6), ("jets_R2p4", 2.4)]
+R_COLORS = ["#c6dbef", "#9ecae1", "#6baed6", "#3182bd", "#08519c"]
+Q_WINDOW = (5.0, 7.5)          # GeV, the Q band used for the fixed-Q figures
+QUOTE_PT = (1.9, 7.3)          # GeV, pT range both jet definitions populate
+PT_EDGES_Q = np.array([1.0, 1.4, 1.9, 2.5, 3.3, 4.3, 5.6, 7.3, 9.5])
+
+
+def load_radius_trees(paths):
+    """The lab radius scan and the hemisphere, keyed by tree name."""
+    files = []
+    for p in paths:
+        files.extend(sorted(glob.glob(p)) or [p])
+    out = {}
+    for name, _ in R_TREES:
+        cols = ["W", "Q2", "pt", "plab", "e_hcm", "current", "captured", "lead",
+                "n_const", "n90"]
+        parts = [uproot.open(f)[name].arrays(cols, library="np") for f in files]
+        d = {k: np.concatenate([p[k] for p in parts]) for k in cols}
+        sel = d["lead"] & np.isfinite(d["n90"])
+        out[name] = {k: v[sel] for k, v in d.items()}
+    cols = ["W", "Q2", "pt", "plab", "e_hcm", "n_const", "n90", "n90_cm"]
+    parts = [uproot.open(f)["hemisphere"].arrays(cols, library="np") for f in files]
+    d = {k: np.concatenate([p[k] for p in parts]) for k in cols}
+    sel = np.isfinite(d["n90"]) & (d["pt"] > 1.0)
+    out["hemisphere"] = {k: v[sel] for k, v in d.items()}
+    return out
+
+
+def fig_capture(trees, outdir):
+    """Fraction of the current hemisphere held by the leading lab jet."""
+    fig, ax = plt.subplots(figsize=(4.6, 3.2))
+    labels = EndLabels(ax)
+    allx, ally = [], []
+    qlo, qhi = Q_WINDOW
+    for (name, R), col in zip(R_TREES, R_COLORS):
+        d = trees[name]
+        Q = np.sqrt(d["Q2"])
+        m = (Q >= qlo) & (Q < qhi)
+        xc, mu, se = profile(d["pt"][m], d["captured"][m], PT_EDGES_Q, min_entries=150)
+        ok = np.isfinite(mu)
+        if ok.sum() < 3:
+            continue
+        ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=col, lw=1.2, elinewidth=0.6,
+                    capsize=0, marker="o", ms=3, mec="white", mew=0.4)
+        labels.add(xc[ok], mu[ok], rf"$R$ = {R}", col)
+        allx.append(xc[ok]); ally.append(mu[ok])
+    ax.axhline(1.0, color=FAINT, lw=0.8, zorder=0)
+    ax.annotate("the whole current system", (1.05, 1.02), fontsize=7, color=MUTED, va="bottom")
+    allx, ally = np.concatenate(allx), np.concatenate(ally)
+    ax.set_xscale("log")
+    ax.set_xticks([1, 2, 3, 5, 8]); ax.set_xticklabels(["1", "2", "3", "5", "8"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"$p_T^{\rm lab}$  [GeV]")
+    ax.set_ylabel("fraction of the current system\nheld by the jet")
+    ax.set_xlim(0.9, 16)
+    range_frame(ax, allx, ally)
+    labels.draw()
+    caption(ax, rf"Leading current jet, $Q$ = {qlo:g}$-${qhi:g} GeV.  A fixed lab cone does not "
+                "hold a fixed piece of the shower: at $R$ = 0.4 it slides from about half the "
+                "current system to all of it as the jet gets harder in the lab.  Above unity the "
+                "cone is also sweeping in the target side.  Only near $R$ = 2.4 does the "
+                "fraction stop depending on $p_T$.")
+    save(fig, outdir, "capture_fraction")
+
+
+def _fixed_q_profiles(d, edges, slices=E_SLICES, quote=QUOTE_PT):
+    """Profiles of n90 vs lab pT within a fixed Q window, one per E_cm slice."""
+    qlo, qhi = Q_WINDOW
+    Q = np.sqrt(d["Q2"])
+    inq = (Q >= qlo) & (Q < qhi)
+    out, spreads, slopes = [], [], []
+    for (lo, hi), col in zip(slices, E_COLORS):
+        m = inq & (d["e_hcm"] >= lo) & (d["e_hcm"] < hi)
+        xc, mu, se = profile(d["pt"][m], d["n90"][m], edges, min_entries=150)
+        ok = np.isfinite(mu)
+        if ok.sum() < 3:
+            continue
+        out.append((xc[ok], mu[ok], se[ok], e_label(lo, hi), col))
+        q = ok & (xc >= quote[0]) & (xc <= quote[1])
+        if q.sum() >= 3:
+            spreads.append(100 * (mu[q].max() - mu[q].min()) / mu[q].mean())
+            slopes.append(np.polyfit(np.log(xc[q]), np.log(mu[q]), 1)[0])
+    return out, spreads, slopes
+
+
+def _draw_fixed_q(profiles, ylabel, span, name, outdir, caption_text):
+    fig, ax = plt.subplots(figsize=(4.6, 3.4))
+    labels = EndLabels(ax)
+    allv = []
+    for xc, mu, se, txt, col in profiles:
+        ax.errorbar(xc, mu, yerr=se, color=col, lw=1.2, elinewidth=0.6, capsize=0,
+                    marker="o", ms=3, mec="white", mew=0.4)
+        labels.add(xc, mu, txt, col)
+        allv.append(mu)
+    allv = np.concatenate(allv)
+    gm = np.sqrt(allv.min() * allv.max())
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_ylim(gm / span, gm * span)                 # identical log span in both figures
+    ax.set_xticks([1, 2, 3, 5, 8]); ax.set_xticklabels(["1", "2", "3", "5", "8"])
+    yt = [t for t in (1.5, 2, 2.5, 3, 4, 5, 6) if gm / span <= t <= gm * span]
+    ax.set_yticks(yt); ax.set_yticklabels([f"{t:g}" for t in yt])
+    ax.minorticks_off()
+    ax.set_xlabel(r"$p_T^{\rm lab}$  [GeV]")
+    ax.set_ylabel(ylabel)
+    ax.set_xlim(0.9, 18)
+    range_frame(ax, np.concatenate([p[0] for p in profiles]), allv)
+    labels.draw()
+    caption(ax, caption_text)
+    save(fig, outdir, name)
+
+
+def fig_fixed_q(trees, outdir):
+    """At fixed Q: a small cone stays sloped, the whole current system goes flat."""
+    qlo, qhi = Q_WINDOW
+    p_r04, sp_r04, sl_r04 = _fixed_q_profiles(trees["jets_R0p4"], PT_EDGES_Q)
+    p_hem, sp_hem, sl_hem = _fixed_q_profiles(trees["hemisphere"], PT_EDGES_Q)
+    # one log span for both panels, so equal visual slope means equal fractional change
+    span = 1.02 * max(np.sqrt(np.concatenate([p[1] for p in ps]).max()
+                              / np.concatenate([p[1] for p in ps]).min())
+                      for ps in (p_r04, p_hem))
+    med_r, med_h = float(np.median(sp_r04)), float(np.median(sp_hem))
+    _draw_fixed_q(p_r04, r"$\langle n_{90}\rangle$,  lab jets $R$ = 0.4", span,
+                  "fixed_q_R04", outdir,
+                  rf"Leading lab jet, $R$ = 0.4, with $Q$ = {qlo:g}$-${qhi:g} GeV held fixed as well "
+                  rf"as the colour-frame energy.  The lines still climb by {med_r:.0f}% over "
+                  rf"$p_T^{{\rm lab}}$ = {QUOTE_PT[0]:g}$-${QUOTE_PT[1]:g} GeV: the cone keeps a "
+                  "$p_T$-dependent fraction of the shower.  Both axes are logarithmic and this "
+                  "figure and the next share a vertical span, so equal visual slope means equal "
+                  "fractional change.")
+    _draw_fixed_q(p_hem, r"$\langle n_{90}\rangle$,  whole current hemisphere", span,
+                  "fixed_q_hemisphere", outdir,
+                  "The same events with the whole Breit current hemisphere taken as the jet, on the "
+                  f"same logarithmic span.  Nothing is left outside the cone and the lines flatten "
+                  f"to {med_h:.0f}%.  Lab-frame clustering does show the shower pattern, but only "
+                  "once it stops cutting the shower and $Q$ is held fixed.")
+    return med_r, med_h
+
+
+def fig_slope_vs_radius(trees, outdir):
+    """Residual dependence on lab pT, at fixed Q and colour-frame energy, against jet radius."""
+    fig, ax = plt.subplots(figsize=(4.6, 3.2))
+    xs, ys, es = [], [], []
+    for name, R in R_TREES:
+        _, _, slopes = _fixed_q_profiles(trees[name], PT_EDGES_Q)
+        if not slopes:
+            continue
+        xs.append(R); ys.append(np.median(slopes))
+        es.append(np.std(slopes, ddof=1) / np.sqrt(len(slopes)) if len(slopes) > 1 else 0.0)
+    _, _, sl_h = _fixed_q_profiles(trees["hemisphere"], PT_EDGES_Q)
+    y_h = float(np.median(sl_h))
+    X_HEMI = 3.6                                        # plotted beyond the radius scan
+    ax.axhline(0.0, color=FAINT, lw=0.8, zorder=0)
+    ax.errorbar(xs, ys, yerr=es, color=INK, lw=1.2, elinewidth=0.6, capsize=0,
+                marker="o", ms=4, mec="white", mew=0.5)
+    ax.plot([X_HEMI], [y_h], marker="D", ms=5, color=ACCENT, mec="white", mew=0.5)
+    ax.annotate("whole current\nhemisphere", (X_HEMI, y_h), xytext=(0, -14),
+                textcoords="offset points", fontsize=7.5, color=ACCENT, ha="center", va="top")
+    ax.annotate("flat", (0.42, 0.012), fontsize=7.5, color=MUTED, va="bottom")
+    ax.annotate(r"anti-$k_T$ radius in the lab", (1.2, ys[-1] + 0.03), fontsize=7.5,
+                color=MUTED, ha="center")
+    ax.set_xlabel(r"jet radius $R$   (rightmost point: no cone at all)")
+    ax.set_ylabel(r"residual slope  $\mathrm{d}\ln\langle n_{90}\rangle\,/\,\mathrm{d}\ln p_T^{\rm lab}$")
+    ax.set_xlim(0.2, 4.1)
+    ax.set_xticks([0.4, 0.8, 1.2, 1.6, 2.4, X_HEMI])
+    ax.set_xticklabels(["0.4", "0.8", "1.2", "1.6", "2.4", "all"])
+    range_frame(ax, np.array(xs), np.array(ys + [y_h, 0.0]))
+    qlo, qhi = Q_WINDOW
+    caption(ax, rf"With $Q$ = {qlo:g}$-${qhi:g} GeV and the colour-frame energy both held fixed, "
+                "how much dependence on lab transverse momentum survives.  Zero is a flat curve.  "
+                "Widening the cone barely helps until it is wide enough to hold the whole current "
+                "system, which in the lab means no cone at all.")
+    save(fig, outdir, "slope_vs_radius")
+    return dict(zip([r for _, r in R_TREES], ys)), y_h
+
+
+# ---------------------------------------------------------------------------
 # Figure 2b: the boost factor — same colour-frame jet, different lab boosts
 # ---------------------------------------------------------------------------
 
@@ -739,6 +920,14 @@ def main():
     args = parse_args()
     jets = load_jets(args.inputs)
     print(f"{len(jets['W']):,} current jets loaded")
+    trees = load_radius_trees(args.inputs)
+    fig_capture(trees, args.outdir)
+    med_r04, med_hemi = fig_fixed_q(trees, args.outdir)
+    slopes_R, slope_h = fig_slope_vs_radius(trees, args.outdir)
+    print(f"  at fixed Q: R=0.4 spread {med_r04:.1f}%, hemisphere {med_hemi:.1f}%")
+    print("  residual slope vs R: "
+          + ", ".join(f"{r}:{v:+.2f}" for r, v in slopes_R.items())
+          + f", hemisphere:{slope_h:+.2f}")
     cj = load_cmjets(args.inputs)
     print(f"{len(cj['e_cm']):,} colour-frame jets loaded")
     ylim_cm, sp_cm = fig_flat_cm(cj, args.outdir)

@@ -120,6 +120,57 @@ essentially frame-stable.  What differs between the two jet collections is
 slice of the colour string, so the lab jet is a different object, not the same
 object measured differently.
 
+### Can a lab-frame jet be made flat?
+
+The colour-frame clustering above changes two things at once: the frame the
+observable is computed in, and which particles the jet contains.  Separating
+them answers a practical question — can the same flatness be reached with
+lab-frame clustering, by widening the cone and controlling Q?
+
+*Widening the cone alone does not work.*  Slicing in colour-frame energy and
+plotting against lab p_T, the spread of the E_cm = 9–14 GeV slice is 88 % at
+R = 0.4, 78 % at R = 0.8, 73 % at R = 1.2, 72 % at R = 1.6 and 74 % for the
+whole current hemisphere.  Removing the out-of-cone loss changes almost
+nothing, because the dominant variable is still Q: lab p_T at fixed E_cm is
+close to a measurement of Q (correlation 0.80 in the logs), and the shower
+opens up with Q.
+
+*Controlling Q is necessary but not sufficient.*  With Q and E_cm both held
+fixed, an R = 0.4 lab jet still climbs by 44 % over p_T^lab = 1.9–7.3 GeV.
+Fitting a power law to the residual dependence, d ln⟨n₉₀⟩/d ln p_T^lab
+(`figures/slope_vs_radius.pdf`):
+
+| lab jet definition | residual slope |
+|---|---|
+| anti-kT R = 0.4 | +0.41 |
+| R = 0.8 | +0.40 |
+| R = 1.2 | +0.38 |
+| R = 1.6 | +0.35 |
+| R = 2.4 | +0.27 |
+| whole Breit current hemisphere | +0.06 |
+
+*Both together do work.*  With Q fixed and the whole current system taken as
+the jet, the curves go flat: 8.7 % median spread against 43.7 % for R = 0.4
+on the same events, the same p_T range and the same logarithmic vertical span
+(`fixed_q_hemisphere.pdf` against `fixed_q_R04.pdf`).
+
+The mechanism is visible directly in the fraction of the current system each
+cone holds (`capture_fraction.pdf`).  At R = 0.4 the leading current jet
+carries 0.60 of the hemisphere's lab momentum at p_T = 2 GeV and 1.05 at
+p_T = 8 GeV; at R = 1.6 it runs from 0.81 to 1.39, above unity because the
+cone starts sweeping in the target side as well.  A fixed lab cone does not
+hold a fixed piece of the shower, and n₉₀ tracks the piece it holds.  The
+hemisphere is compact in the lab — the radius containing 90 % of its momentum
+has median 0.39 and reaches only 0.76 in the highest W slice — so the problem
+is not that the shower is spread over a huge area, but that a cone selects by
+lab p_T while the shower is organised in another frame.
+
+Practical consequence for a measurement: the observable to use at the EIC is
+the current hemisphere of the Breit frame, or equivalently a jet defined in the
+γ*p frame, binned in both the colour-frame energy and Q.  Conventional
+lab-frame jets of any usable radius carry a residual boost dependence of about
+0.3 to 0.4 in the exponent.
+
 ### The W dependence at fixed lab momentum
 
 Against total \|p\|_lab the W slices fan out by 35–83 % (`ffs_fan.pdf`): at
@@ -149,6 +200,9 @@ cleaner claim.
 
 ### Caveats to carry into a paper
 
+* The residual slope of +0.06 for the hemisphere is not exactly zero, and the
+  lowest E_cm slices remain the least flat; part of this is the p_T > 1 GeV
+  requirement biasing the low-E_cm sample.
 * The angular radius used in the colour rest frame (0.4 rad) is a choice; the
   flatness holds at 0.8 and 1.0 rad too, with larger ⟨n₉₀⟩ throughout.
 * Colour-frame jets are not directly measurable without the scattered lepton,
