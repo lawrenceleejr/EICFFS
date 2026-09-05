@@ -414,6 +414,60 @@ not simulated here and is the leading experimental question.
 
 ---
 
+## 3.8 Relation to EIC jet conventions, and a correction
+
+**What the field does.**  Most EIC simulation studies cluster *inclusively in the
+laboratory* with anti-kT at a large radius, **R ≈ 1.0**, chosen for the low
+hadron multiplicity, with inputs typically p_T > 250 MeV and |η| < 4.5
+(lepton–jet correlations [1812.08077](https://arxiv.org/abs/1812.08077),
+jet-based Sivers and Collins asymmetries
+[2007.07281](https://arxiv.org/abs/2007.07281), heavy-flavour and jet studies
+[2007.14417](https://arxiv.org/abs/2007.14417)).  On the theory side the Breit
+frame is standard and growing: Centauro
+([2006.10751](https://arxiv.org/abs/2006.10751)) was built to cluster the Born
+configuration there, and a recent inclusive generalised-kT algorithm for DIS
+([2606.13077](https://arxiv.org/abs/2606.13077)) is defined in the Breit frame
+and shipped in fjcontrib, noting that in DIS, unlike pp, "no single algorithm
+dominates the landscape".  Exclusive algorithms — Durham and Cambridge adapted
+from e⁺e⁻ by treating the remnant as a particle of infinite momentum — are the
+HERA legacy and have largely given way to inclusive longitudinally-invariant kT
+in the Breit frame.  Separately, and without any clustering, there is the HERA
+current-region tradition: multiplicities and fragmentation functions measured in
+the current hemisphere of the Breit frame.  The object recommended in Sec. 3.7
+sits in that tradition, so it is conventional rather than exotic.
+
+**The correction.**  The *R* = 0.4 used throughout this note was inherited from
+arXiv:2308.10951, not from EIC practice.  Repeating the beam-energy ladder at
+the radii the field actually uses weakens the claim that a lab cone spoils
+frame independence:
+
+| leading lab jet | n₉₀ exponent | n_SD exponent | ⟨N_const⟩ |
+|---|---|---|---|
+| *R* = 0.4 | +0.038 | −1.480 | 2.6 |
+| *R* = 0.8 | +0.035 | −0.545 | 4.1 |
+| *R* = 1.2 | +0.011 | −0.329 | 5.2 |
+| *R* = 1.6 | +0.003 | −0.302 | 6.1 |
+| *R* = 2.4 | −0.002 | −0.346 | 7.4 |
+
+At the EIC-standard *R* ≈ 1 a laboratory cone is already frame independent for
+n₉₀ to about a percent, comparable to the γ*p-frame jet (+0.015) and the
+hemisphere (−0.008).  On the beam-energy test the cone is therefore *not* the
+problem for n₉₀; the problems are running with no control at all (+0.277) and
+computing an angular-cut observable in the laboratory (−0.3 to −1.5, at every
+radius).
+
+**What this means for the radius scan of Sec. 3.7.**  That scan held *Q* and
+colour-frame energy fixed *within one beam configuration* and varied lab p_T,
+finding +0.41 at *R* = 0.4 falling only to +0.06 for the hemisphere.  That test
+is not purely a frame test: at fixed (E_cm, *Q*) the lab p_T of a jet is set by
+its angle θ* to the boson axis in the colour frame, so part of the residual is
+genuine θ* dependence of the fragmentation rather than cone bookkeeping.  The
+capture-fraction measurement (0.60 → 1.05 across p_T at *R* = 0.4) is direct
+evidence that cone bookkeeping contributes, but the split between the two was
+not separated, and the beam-energy ladder above is the cleaner statement.
+
+---
+
 ## 4. Method and framework
 
 Pipeline: `generate_events.py` (Pythia 8, particle-level, stores q, k′, the beam
