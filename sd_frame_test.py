@@ -148,6 +148,88 @@ def slopes(beams, key):
     return np.array(out)
 
 
+Q_MARKERS = {0: "o", 1: "s", 2: "^"}
+W_COLS = ["#9ecae1", "#3182bd", "#08306b"]
+
+
+def range_frame(ax, x, y):
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    if x is not None and np.isfinite(x).any():
+        ax.spines["bottom"].set_bounds(np.nanmin(x), np.nanmax(x))
+    if y is not None and np.isfinite(y).any():
+        ax.spines["left"].set_bounds(np.nanmin(y), np.nanmax(y))
+
+
+def cell_lines(beams, key):
+    """Per (W, Q) cell: median lab momentum and mean observable, one point per beam."""
+    rows = []
+    for iw, (wlo, whi) in enumerate(W_CELLS):
+        for iq, (qlo, qhi) in enumerate(Q_CELLS):
+            xs, ys, es = [], [], []
+            for d in beams.values():
+                m = ((d["W"] >= wlo) & (d["W"] < whi) & (d["Q"] >= qlo) & (d["Q"] < qhi)
+                     & (d["plab"] > 1) & (d["nc"] >= 2))
+                if m.sum() < 200:
+                    xs = []
+                    break
+                v = d[key][m]
+                xs.append(np.median(d["plab"][m]))
+                ys.append(v.mean())
+                es.append(v.std(ddof=1) / np.sqrt(len(v)))
+            if xs:
+                rows.append((iw, iq, wlo, whi, np.array(xs), np.array(ys), np.array(es)))
+    return rows
+
+
+def draw_cells(beams, key, name, title, outdir, span, caption_text):
+    """One panel: the cell lines across beam energies, log axes, fixed vertical span."""
+    rows = cell_lines(beams, key)
+    fig, ax = plt.subplots(figsize=(4.8, 3.5))
+    allv = []
+    for iw, iq, wlo, whi, xs, ys, es in rows:
+        ax.errorbar(xs, ys, yerr=es, color=W_COLS[iw], lw=1.1, elinewidth=0.6, capsize=0,
+                    marker=Q_MARKERS[iq], ms=3.4, mec="white", mew=0.4)
+        allv.append(ys)
+    allv = np.concatenate(allv)
+    gm = np.sqrt(allv.min() * allv.max())
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_ylim(gm / span, gm * span)
+    ax.set_xticks([1, 2, 5, 10, 20, 50])
+    ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
+    yt = [t for t in (0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0) if gm / span <= t <= gm * span]
+    ax.set_yticks(yt)
+    ax.set_yticklabels([f"{t:g}" for t in yt])
+    ax.minorticks_off()
+    ax.set_xlim(0.9, 170)
+    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    ax.set_ylabel(r"$\langle n_{\rm SD}\rangle$")
+    ax.set_title(title, fontsize=9, loc="left")
+    range_frame(ax, np.concatenate([r[4] for r in rows]), allv)
+    # one label per W family, on its right-most cell, pushed apart vertically
+    best = {}
+    for iw, iq, wlo, whi, xs, ys, es in rows:
+        if iw not in best or xs[-1] > best[iw][0]:
+            best[iw] = (xs[-1], ys[-1], wlo, whi)
+    fig.canvas.draw()
+    items = sorted(best.items(), key=lambda kv: kv[1][1])
+    pts = [ax.transData.transform((v[0], v[1]))[1] * 72.0 / fig.dpi for _, v in items]
+    top = max(ax.transData.transform((1.0, v))[1] * 72.0 / fig.dpi for v in allv)
+    target = [top + 12.0 + 11.0 * i for i in range(len(items))]
+    for (iw, (x, y, wlo, whi)), p0, p1 in zip(items, pts, target):
+        ax.annotate(rf"$W$ = {wlo}$-${whi} GeV", (x, y), xytext=(7, p1 - p0),
+                    textcoords="offset points", fontsize=7, color=W_COLS[iw], va="center")
+    t = ax.text(0.0, -0.26, caption_text, transform=ax.transAxes, fontsize=7.5, color=MUTED,
+                va="top", ha="left", wrap=True)
+    t._is_caption = True
+    for ext in ("pdf", "png"):
+        fig.savefig(os.path.join(outdir, f"{name}.{ext}"), bbox_inches="tight",
+                    dpi=220 if ext == "png" else None)
+    plt.close(fig)
+    print(f"  -> {outdir}/{name}.pdf")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -208,6 +290,24 @@ def main():
         fig.savefig(os.path.join(args.outdir, f"sd_frame_choice.{ext}"), bbox_inches="tight",
                     dpi=220 if ext == "png" else None)
     print(f"  -> {args.outdir}/sd_frame_choice.pdf")
+
+    # the data behind the summary: cell lines for the broken and the standard form
+    v_ee = np.concatenate([r[5] for r in cell_lines(beams, "lab_ee")])
+    span = 1.05 * np.sqrt(v_ee.max() / v_ee.min())
+    draw_cells(beams, "lab_ee", "beam_energy_sd_ee",
+               r"$n_{\rm SD}$, $e^+e^-$ variables in the laboratory", args.outdir, span,
+               "Each line is one cell of fixed $(W, Q)$ measured at 5$\\times$41, 10$\\times$100 and "
+               "18$\\times$275 GeV, so the colour-frame physics is identical along it and only the "
+               "laboratory frame changes.  With an absolute opening-angle cut the observable collapses "
+               "as the beams get harder: the hemisphere collimates below $\\theta_{\\rm cut}$ and its "
+               "branchings stop being counted.  Median exponent $-0.474$.")
+    draw_cells(beams, "beam_pp", "beam_energy_sd_standard",
+               r"$n_{\rm SD}$, standard $pp$ variables in the laboratory", args.outdir, span,
+               "The same cells and the same laboratory measurement, with soft drop written the standard "
+               "way: transverse-momentum fractions and a rapidity-azimuth distance.  Identical vertical "
+               "span to the previous figure.  The lines are flat, median exponent $-0.016$: an IRC-safe "
+               "observable measured entirely in the laboratory, with no boosting and no knowledge of "
+               "the colour rest frame beyond the $(W, Q)$ binning.")
 
 
 if __name__ == "__main__":
