@@ -583,6 +583,135 @@ def fig_slope_vs_radius(trees, outdir):
 
 
 # ---------------------------------------------------------------------------
+# Hemisphere against full lab momentum: sliced in E_cm, and inclusive
+# ---------------------------------------------------------------------------
+
+P_HEMI = np.array([1.0, 1.6, 2.5, 4.0, 6.3, 10.0, 16.0, 25.0, 40.0, 63.0])
+E_SLICES_H = [(2.5, 4), (4, 6), (6, 9), (9, 14), (14, 22)]
+E_COLORS_H = ["#9ecae1", "#6baed6", "#3182bd", "#08519c", "#08306b"]
+
+
+def _hemi_lines(ax, d, mask, labels, allx, ally, annotate_q_for=(4, 6), min_entries=200):
+    """E_cm-sliced <n90> vs |p|_lab for hemispheres passing mask; returns spreads."""
+    spreads = []
+    for (lo, hi), col in zip(E_SLICES_H, E_COLORS_H):
+        m = mask & (d["e_hcm"] >= lo) & (d["e_hcm"] < hi)
+        xc, mu, se = profile(d["plab"][m], d["n90"][m], P_HEMI, min_entries=min_entries)
+        ok = np.isfinite(mu)
+        if ok.sum() < 3:
+            continue
+        ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=col, lw=1.2, elinewidth=0.6,
+                    capsize=0, marker="o", ms=3, mec="white", mew=0.4)
+        labels.add(xc[ok], mu[ok], e_label(lo, hi), col)
+        spreads.append(100 * (mu[ok].max() - mu[ok].min()) / mu[ok].mean())
+        allx.append(xc[ok]); ally.append(mu[ok])
+        if annotate_q_for and (lo, hi) == annotate_q_for:
+            idx = np.digitize(d["plab"][m], P_HEMI) - 1
+            for k in np.where(ok)[0]:
+                qmed = np.median(np.sqrt(d["Q2"][m][idx == k]))
+                ax.annotate(rf"$Q\approx${qmed:.1f}", (xc[k], mu[k]), xytext=(0, -11),
+                            textcoords="offset points", ha="center", fontsize=6, color=MUTED)
+    return spreads
+
+
+def fig_hemisphere_vs_p(trees, outdir):
+    """Inclusive slope, and E_cm slices that do not flatten because |p|_lab is Q."""
+    d = trees["hemisphere"]
+    fig, ax = plt.subplots(figsize=(4.6, 3.6))
+    labels = EndLabels(ax)
+    allx, ally = [], []
+    every = np.ones(len(d["W"]), dtype=bool)
+    spreads = _hemi_lines(ax, d, every, labels, allx, ally)
+    xc, mu, se = profile(d["plab"], d["n90"], P_HEMI, min_entries=200)
+    ok = np.isfinite(mu)
+    ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=INK, lw=1.8, elinewidth=0.6, capsize=0,
+                marker="o", ms=3.5, mec="white", mew=0.4, zorder=5)
+    labels.add(xc[ok], mu[ok], "all hemispheres", INK)
+    allx.append(xc[ok]); ally.append(mu[ok])
+    ax.set_xscale("log")
+    ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"full lab momentum of the current hemisphere, $|\vec p|_{\rm lab}$  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$")
+    ax.set_xlim(0.9, 130)
+    range_frame(ax, np.concatenate(allx), np.concatenate(ally))
+    labels.draw()
+    caption(ax, "Whole Breit current hemisphere, every quantity measured in the lab.  The inclusive "
+                "curve climbs steeply, and slicing in colour-frame energy does not flatten it "
+                f"(median spread {np.median(spreads):.0f}%).  The small grey numbers give the median "
+                "$Q$ in each bin of one slice: at fixed $E_{\\rm cm}$ the lab momentum of the current "
+                "system is set by $Q$, so this axis is a $Q$ scan in disguise.")
+    save(fig, outdir, "hemisphere_vs_p")
+    return float(np.median(spreads))
+
+
+def fig_hemisphere_vs_p_fixed_q(trees, outdir, q_window=(5.0, 7.5)):
+    d = trees["hemisphere"]
+    Q = np.sqrt(d["Q2"])
+    qlo, qhi = q_window
+    fig, ax = plt.subplots(figsize=(4.6, 3.6))
+    labels = EndLabels(ax)
+    allx, ally = [], []
+    spreads = _hemi_lines(ax, d, (Q >= qlo) & (Q < qhi), labels, allx, ally,
+                          annotate_q_for=None, min_entries=150)
+    ax.set_xscale("log")
+    ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$")
+    ax.set_xlim(0.9, 130)
+    range_frame(ax, np.concatenate(allx), np.concatenate(ally))
+    labels.draw()
+    caption(ax, rf"The same object with $Q$ = {qlo:g}$-${qhi:g} GeV held fixed.  The slices with most "
+                "of the current system's energy flatten (a few percent); the low-energy slices keep a "
+                "residual rise.  Within a fixed $(E_{\\rm cm}, Q)$ cell the lab momentum has little room "
+                "left to vary, and what varies is the share of $W$ the hemisphere carries.")
+    save(fig, outdir, "hemisphere_vs_p_fixed_q")
+    return float(np.median(spreads))
+
+
+def fig_hemisphere_p_vs_q(trees, outdir):
+    """Why: at fixed W the boost of the current system is a function of Q."""
+    d = trees["hemisphere"]
+    Q = np.sqrt(d["Q2"])
+    fig, ax = plt.subplots(figsize=(4.6, 3.4))
+    labels = EndLabels(ax)
+    q_edges = np.array([1.0, 1.5, 2.2, 3.3, 5.0, 7.5, 11.0, 17.0])
+    allx, ally = [], []
+    for (lo, hi), col in zip(W_SLICES, W_COLORS):
+        m = (d["W"] >= lo) & (d["W"] < hi)
+        idx = np.digitize(Q[m], q_edges) - 1
+        med = np.array([np.median(d["plab"][m][idx == k]) if (idx == k).sum() >= 300 else np.nan
+                        for k in range(len(q_edges) - 1)])
+        lo16 = np.array([np.percentile(d["plab"][m][idx == k], 16) if (idx == k).sum() >= 300 else np.nan
+                         for k in range(len(q_edges) - 1)])
+        hi84 = np.array([np.percentile(d["plab"][m][idx == k], 84) if (idx == k).sum() >= 300 else np.nan
+                         for k in range(len(q_edges) - 1)])
+        xc = np.sqrt(q_edges[:-1] * q_edges[1:])
+        ok = np.isfinite(med)
+        if ok.sum() < 2:
+            continue
+        ax.fill_between(xc[ok], lo16[ok], hi84[ok], color=col, alpha=0.18, lw=0)
+        ax.plot(xc[ok], med[ok], color=col, lw=1.2, marker="o", ms=3, mec="white", mew=0.4)
+        labels.add(xc[ok], med[ok], w_label(lo, hi), col)
+        allx.append(xc[ok]); ally.append(med[ok])
+    ax.set_xscale("log"); ax.set_yscale("log")
+    ax.set_xticks([1, 2, 3, 5, 10, 15]); ax.set_xticklabels(["1", "2", "3", "5", "10", "15"])
+    ax.set_yticks([1, 2, 5, 10, 20, 50]); ax.set_yticklabels(["1", "2", "5", "10", "20", "50"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"$Q$  [GeV]")
+    ax.set_ylabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    ax.set_xlim(0.9, 30)
+    range_frame(ax, np.concatenate(allx), np.concatenate(ally))
+    labels.draw()
+    caption(ax, "Median and central 68% of the current hemisphere's lab momentum against $Q$ in "
+                "slices of $W$.  DIS has two kinematic degrees of freedom; once $W$ (hence the "
+                "colour-frame energy) is fixed, the boost of the current system into the lab is a "
+                "function of $Q$ alone.  Unlike $e^+e^-\\to ZZ$, there is no independent boost knob.")
+    save(fig, outdir, "hemisphere_p_vs_q")
+
+
+# ---------------------------------------------------------------------------
 # Figure 2b: the boost factor — same colour-frame jet, different lab boosts
 # ---------------------------------------------------------------------------
 
@@ -924,6 +1053,10 @@ def main():
     fig_capture(trees, args.outdir)
     med_r04, med_hemi = fig_fixed_q(trees, args.outdir)
     slopes_R, slope_h = fig_slope_vs_radius(trees, args.outdir)
+    sp_incl = fig_hemisphere_vs_p(trees, args.outdir)
+    sp_fq = fig_hemisphere_vs_p_fixed_q(trees, args.outdir)
+    fig_hemisphere_p_vs_q(trees, args.outdir)
+    print(f"  hemisphere vs |p|_lab: E_cm-sliced spread {sp_incl:.0f}%, at fixed Q {sp_fq:.0f}%")
     print(f"  at fixed Q: R=0.4 spread {med_r04:.1f}%, hemisphere {med_hemi:.1f}%")
     print("  residual slope vs R: "
           + ", ".join(f"{r}:{v:+.2f}" for r, v in slopes_R.items())

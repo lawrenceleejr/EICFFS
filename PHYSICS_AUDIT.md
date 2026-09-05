@@ -171,6 +171,44 @@ the current hemisphere of the Breit frame, or equivalently a jet defined in the
 lab-frame jets of any usable radius carry a residual boost dependence of about
 0.3 to 0.4 in the exponent.
 
+### The whole current hemisphere against full lab momentum
+
+The most direct version of the test asks for the whole current system, every
+quantity measured in the lab, sliced in colour-frame energy and plotted
+against full lab momentum |p|_lab rather than p_T.  The answer is not flat,
+and the reason is kinematic rather than a property of jets
+(`figures/hemisphere_vs_p.pdf`).
+
+Inclusively, ⟨n₉₀⟩ of the current hemisphere rises from 1.6 to 4.5 between
+|p|_lab = 1 and 60 GeV.  Sliced in E_cm the lines do not flatten: median
+spread 90 %.  Along any slice the median Q rises with |p|_lab (from 2.0 to
+12 GeV for the E_cm = 4–6 GeV slice), and the correlation between log|p|_lab
+and log Q at fixed E_cm is 0.80.
+
+This is not an accident of the sample.  DIS has two kinematic degrees of
+freedom.  At leading order the current hemisphere carries E_cm ≈ W/2, so
+fixing E_cm fixes W, and the boost of the γ*p frame into the lab is then a
+function of Q alone: at W = 15–22 GeV the hemisphere's median |p|_lab runs
+2.1, 4.2, 9.0, 17.4 GeV for Q = 2.2–3.3, 3.3–5, 5–7.5, 7.5–11 GeV, with a
+16–84 % spread of only a factor of about two inside each cell
+(`hemisphere_p_vs_q.pdf`).  For the whole current system the EIC has no boost
+knob independent of the hard scale; a lab-momentum scan at fixed colour-frame
+energy *is* a Q scan.  This is the essential difference from e⁺e⁻ → ZZ, where
+the Z boost varies independently of m_Z.
+
+Fixing Q as well recovers most of the flatness (`hemisphere_vs_p_fixed_q.pdf`,
+Q = 5–7.5 GeV, median spread 14 %).  The slices carrying most of the current
+system's energy are flat to a few percent; the low-E_cm slices keep a residual
+rise, because within a fixed (E_cm, Q) cell the remaining variable is the share
+of W the hemisphere carries.
+
+Where an independent lever does exist is below the hemisphere level: a narrow
+jet clustered in the γ*p frame can sit at any angle θ* to the boost axis, so
+its lab momentum varies at fixed (E_cm, Q).  Those jets are the ones that
+collapse to 4–13 % (previous section), and they are nearly Q-blind
+(8–10 % across Q at fixed E_cm) because the Q-dependent wide-angle radiation
+falls outside a 0.4 rad cone.
+
 ### The W dependence at fixed lab momentum
 
 Against total \|p\|_lab the W slices fan out by 35–83 % (`ffs_fan.pdf`): at
