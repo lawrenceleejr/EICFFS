@@ -313,6 +313,61 @@ unsafe.
 
 ---
 
+## 3.6 Dropping cones altogether
+
+If a fixed cone is the problem, the obvious move is to abandon it and always
+measure the whole current region.  That works, and it is the recommendation,
+but the current region has choices of its own.  `object_choice_test.py` runs the
+beam-energy test over them (`figures/object_choice.pdf`):
+
+| definition | exponent | ⟨N_const⟩ | events with ≤ 1 particle |
+|---|---|---|---|
+| Breit current hemisphere | −0.012 | 3.2 | 39 % |
+| … with lab \|p\| > 0.5 GeV | **+0.166** | 2.1 | 39 % |
+| … with lab p_T > 0.15 GeV | +0.009 | 2.6 | 26 % |
+| γ*p current region, y* > 0 | +0.005 | 8.4 | 0 % |
+| … with lab \|p\| > 0.5 GeV | **+0.245** | 4.7 | 2 % |
+| … with lab p_T > 0.15 GeV | +0.014 | 5.9 | 0 % |
+
+Three things follow.
+
+**The cone pathology is genuinely gone.**  The radius scan ran from +0.41 at
+*R* = 0.4 to +0.06 for the whole hemisphere; the current region carries no
+residual of it.
+
+**Detector angular acceptance does not spoil it.**  This was the obvious worry,
+and it is unfounded at EIC energies: 99.7 % of the current hemisphere's momentum
+lies inside |η| < 3.5, and the exponent is unchanged at |η| < 4 or 3.5
+(−0.012, −0.018).  It is the *target* region that disappears down the
+beampipe.
+
+**A momentum threshold does spoil it, and this is the replacement for the cone
+effect.**  Requiring |p|_lab > 0.5 GeV per particle gives +0.166 for the Breit
+hemisphere and +0.245 for the γ*p region — worse than the *R* = 0.4 cone.  The
+reason is elementary: |p| is not invariant under a boost along the axis, so the
+same particle passes at high beam energy and fails at low.  A **transverse**
+momentum threshold is invariant under that boost, and costs almost nothing:
+p_T > 0.15 GeV gives +0.009 and +0.014.  Any per-particle cut used in such a
+measurement should be transverse.
+
+**Which current region.**  The γ*p region (y* > 0) is the better object of the
+two.  It holds 8.4 particles against the Breit hemisphere's 3.2 and has no empty
+events, against 39 % of Breit hemispheres with one particle or fewer — which is
+why the grooming observable of Sec. 3 failed there.  The two are not the same
+measurement, though: at fixed *Q* the Breit hemisphere is *W*-independent
+(N_const −2 %, ⟨n₉₀⟩ −2 % from *W* = 10–15 to 32–45, the classic HERA
+current-region result), while the γ*p region grows with the string
+(N_const +54 %, ⟨n₉₀⟩ +32 %).  The Breit hemisphere is the *Q*-only object; the
+γ*p region is the one that responds to the colour-frame energy, and for a
+frame-dependence study that is the point.
+
+What remains unaddressed is reconstruction: both definitions need the frame
+built event by event, so both inherit the resolution of the scattered-lepton or
+hadronic-method kinematics, and particles near the boundary migrate.  That is
+not simulated here and is the leading experimental question.
+
+---
+
 ## 4. Method and framework
 
 Pipeline: `generate_events.py` (Pythia 8, particle-level, stores q, k′, the beam
