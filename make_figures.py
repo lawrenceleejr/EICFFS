@@ -55,7 +55,7 @@ MIN_ENTRIES = 40
 # Single-hue sequential ramp for the ordered variable W (light = low W)
 W_COLORS = ["#9ecae1", "#6baed6", "#3182bd", "#08519c", "#08306b"]
 # Sequential ramp for the ordered variable E_cm (six steps, light = low energy)
-E_COLORS = ["#c6dbef", "#9ecae1", "#6baed6", "#3182bd", "#08519c", "#08306b"]
+E_COLORS = ["#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"]
 E_SLICES = [(1.5, 2.5), (2.5, 4), (4, 6), (6, 9), (9, 14), (14, 22)]
 PCM_SLICES = [(2, 3.3), (3.3, 5), (5, 7.5), (7.5, 11), (11, 16), (16, 24)]
 PT_EDGES_CM = np.array([0.6, 1.0, 1.5, 2.0, 2.7, 3.5, 4.5, 6.0, 8.0, 11.0])
@@ -150,24 +150,58 @@ class EndLabels:
         if ok.any():
             self.items.append((np.asarray(x)[ok][-1], np.asarray(y)[ok][-1], text, color))
 
-    def draw(self):
+    def draw(self, column=False):
+        """
+        Place the labels.  With ``column=True`` every label sits in one column just
+        right of the right-most line end, joined to its own line end by a faint
+        leader, so no label can lie across another line's data.
+        """
         if not self.items:
             return
         fig = self.ax.figure
         fig.canvas.draw()                     # axes transforms are final now
         pts = np.array([self.ax.transData.transform((x, y)) for x, y, _, _ in self.items])
         disp_y = pts[:, 1] * 72.0 / fig.dpi   # points
+        disp_x = pts[:, 0] * 72.0 / fig.dpi
         order = np.argsort(disp_y)
         target = disp_y[order].copy()
         for i in range(1, len(target)):       # push upwards to keep min separation
             target[i] = max(target[i], target[i - 1] + self.min_sep)
         shift = 0.5 * (target[-1] - disp_y[order][-1])  # recentre the stack
         target -= shift * (len(target) > 1)
+        x_col = disp_x.max() + 10.0
         for k, idx in enumerate(order):
             x, y, text, color = self.items[idx]
             dy = target[k] - disp_y[idx]
-            self.ax.annotate(text, (x, y), xytext=(6, dy), textcoords="offset points",
-                             va="center", ha="left", fontsize=self.fs, color=color)
+            if column:
+                dx = x_col - disp_x[idx]
+                self.ax.annotate("", (x, y), xytext=(dx - 3.0, dy), textcoords="offset points",
+                                 arrowprops=dict(arrowstyle="-", color=FAINT, lw=0.6,
+                                                 shrinkA=0, shrinkB=0))
+                self.ax.annotate(text, (x, y), xytext=(dx, dy), textcoords="offset points",
+                                 va="center", ha="left", fontsize=self.fs, color=color)
+            else:
+                self.ax.annotate(text, (x, y), xytext=(6, dy), textcoords="offset points",
+                                 va="center", ha="left", fontsize=self.fs, color=color)
+
+
+def q_key(ax, y=1.03):
+    """Explain the marker shapes that encode the Q bin, above the axes."""
+    x = 0.0
+    for iq, (qlo, qhi) in enumerate(BEAM_CELLS_Q):
+        ax.plot([x], [y], marker=Q_MARKERS[iq], ms=3.4, color=MUTED, mec="white", mew=0.4,
+                transform=ax.transAxes, clip_on=False)
+        txt = (rf"$Q$ = {qlo:g}$-${qhi:g} GeV" if iq == 0 else rf"{qlo:g}$-${qhi:g}")
+        ax.annotate(txt, (x, y), xytext=(6, 0), textcoords="offset points", xycoords="axes fraction",
+                    va="center", ha="left", fontsize=7, color=MUTED)
+        x += 0.30 if iq == 0 else 0.17
+
+
+def beam_marks(ax, pts, dy=-12):
+    """Name the three beam configurations under the points of one cell."""
+    for x, y, _, lab in pts:
+        ax.annotate(lab.replace("x", "$\\times$"), (x, y), xytext=(0, dy),
+                    textcoords="offset points", fontsize=6.5, color=MUTED, ha="center")
 
 
 def caption(ax, text, fontsize=7.5):
@@ -796,7 +830,7 @@ def _beam_cells(beams, xkey="plab", ecm_cells=False):
 
 
 def _draw_beam_rows(ax, rows, colors):
-    labels = EndLabels(ax, min_sep_pt=8.5, fontsize=7)
+    labels = EndLabels(ax, min_sep_pt=9.0, fontsize=7)
     allx, ally, flat = [], [], []
     for name, iw, iq, pts in rows:
         xs = np.array([p[0] for p in pts]); ys = np.array([p[1] for p in pts]); es = np.array([p[2] for p in pts])
@@ -831,12 +865,8 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         ax.annotate(f"all hemispheres, {inclusive_path}", (xc[ok][-1], mu[ok][-1]),
                     xytext=(6, 0), textcoords="offset points", fontsize=7, color=MUTED, va="center")
     labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
-    # beam labels along one row
     if rows:
-        _, _, _, pts = rows[len(rows) // 2]
-        for x, y, _, lab in pts:
-            ax.annotate(lab, (x, y), xytext=(0, -12), textcoords="offset points",
-                        fontsize=6.5, color=MUTED, ha="center")
+        beam_marks(ax, rows[len(rows) // 2][3])
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
@@ -857,7 +887,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     results["hemisphere"] = flat
 
     # -- leading R = 0.4 lab jet: the cone breaks the invariance -----------
-    beams_j = [(lab, _load_tree(p, "jets_R0p4", ["W", "Q2", "plab", "n90", "lead", "current"],
+    beams_j = [(lab, _load_tree(p, "jets_R1p2", ["W", "Q2", "plab", "n90", "lead", "current"],
                                 lambda d: d["lead"] & d["current"] & np.isfinite(d["n90"])))
                for lab, p in beam_paths]
     rows = _beam_cells(beams_j)
@@ -866,15 +896,17 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
-    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the leading lab jet, $R$ = 0.4  [GeV]")
+    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the leading lab jet, $R$ = 1.2  [GeV]")
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
     ax.set_xlim(0.9, 200)
     range_frame(ax, allx, ally)
-    labels.draw()
+    labels.draw(column=True)
+    q_key(ax)
     med_j = float(np.median(flat))
-    caption(ax, "The same cells and beam configurations, now for the leading anti-$k_T$ $R$ = 0.4 jet "
-                f"clustered in the lab: median slope {med_j:+.2f}, and the lowest-energy configuration "
-                "breaks away in the higher-$Q$ cells.  The boost changes which particles the cone holds.")
+    caption(ax, "The same cells and beam configurations for the leading anti-$k_T$ jet clustered in the "
+                "laboratory at $R$ = 1.2, the radius EIC studies use: median slope "
+                f"{med_j:+.3f}.  A plain lab cone of sensible size is already frame independent; the "
+                "$R$ = 0.4 of the reference paper is the worst case (see ladder_vs_radius).")
     save(fig, outdir, "beam_energy_labjet")
     results["labjet"] = flat
 
@@ -899,7 +931,8 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         ax.set_ylabel(r"$\langle n_{90}\rangle$")
         ax.set_xlim(0.9, 200)
         range_frame(ax, allx, ally)
-        labels.draw()
+        labels.draw(column=True)
+        q_key(ax)
         med_c = float(np.median(flat))
         caption(ax, "Jets clustered in the colour rest frame with $n_{90}$ computed from their lab "
                     "momenta, in cells of fixed jet energy in that frame and fixed $Q$, across the three "
@@ -936,42 +969,40 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     One panel: how much lab-frame dependence each choice introduces, from the
     inclusive measurement down to the fully frame-defined observable.
     """
-    hemi = [(l, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90", "n90_cm", "n_sd", "n_sd_cm", "n_sd_rest"],
+    hemi = [(l, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90", "n90_cm", "n_sd", "n_sd_cm", "n_sd_rest", "n_sd_pp"],
                            lambda d: np.isfinite(d["n90"]) & np.isfinite(d["n90_cm"]) & (d["plab"] > 1.0)))
             for l, p in beam_paths]
-    labj = [(l, _load_tree(p, "jets_R0p4", ["W", "Q2", "plab", "n90", "n_sd", "lead", "current"],
+    labj = [(l, _load_tree(p, "jets_R1p2", ["W", "Q2", "plab", "n90", "n_sd", "n_sd_pp", "lead", "current"],
                            lambda d: d["lead"] & d["current"] & np.isfinite(d["n90"]) & (d["n_sd"] >= 0)))
             for l, p in beam_paths]
     cmj = []
     for l, p in beam_paths:
         d = uproot.open(p)["cmjets"].arrays(
-            ["e_cm", "Q2", "p_lab", "n90_labmom", "n90_cm", "n_sd_lab", "n_sd_cm", "n_sd_rest"],
+            ["e_cm", "Q2", "p_lab", "n90_labmom", "n90_cm", "n_sd_lab", "n_sd_cm", "n_sd_rest", "n_sd_pp"],
             library="np")
         d = {"e_hcm": d["e_cm"], "Q2": d["Q2"], "plab": d["p_lab"],
              "n90": d["n90_labmom"], "n90_cm": d["n90_cm"],
-             "n_sd": d["n_sd_lab"], "n_sd_cm": d["n_sd_cm"], "n_sd_rest": d["n_sd_rest"]}
+             "n_sd": d["n_sd_lab"], "n_sd_cm": d["n_sd_cm"], "n_sd_rest": d["n_sd_rest"],
+             "n_sd_pp": d["n_sd_pp"]}
         m = np.isfinite(d["n90"]) & np.isfinite(d["n90_cm"])
         cmj.append((l, {k: v[m] for k, v in d.items()}))
 
     E_CELLS = [(2.5, 4), (4, 6), (6, 9), (9, 14)]
     SD = "#7a4fa3"
+    # standard-form soft drop is boost invariant along the axis, so lab momenta suffice
     rungs_sd = [
-        ("lab cone $R$ = 0.4\nat fixed $(W, Q)$", _cell_slopes(labj, "W", BEAM_CELLS_W, "n_sd")),
-        ("whole current hemisphere,\nfrom lab momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n_sd")),
-        ("$\\gamma^*p$-frame jet,\nfrom lab momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n_sd")),
-        ("whole current hemisphere,\nfrom frame momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n_sd_cm")),
-        ("$\\gamma^*p$-frame jet,\nfrom frame momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n_sd_cm")),
-        ("either object,\nin its own rest frame", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n_sd_rest")),
+        ("lab cone $R$ = 1.2\nat fixed $(W, Q)$", _cell_slopes(labj, "W", BEAM_CELLS_W, "n_sd_pp")),
+        ("whole current hemisphere,\nfrom lab momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n_sd_pp")),
+        ("$\\gamma^*p$-frame jet,\nfrom lab momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n_sd_pp")),
     ]
     sd_by_name = dict(rungs_sd)
     rungs = [
         ("no control:\nall hemispheres, one beam", [inclusive_slope], ACCENT),
-        ("lab cone $R$ = 0.4\nat fixed $(W, Q)$", _cell_slopes(labj, "W", BEAM_CELLS_W, "n90"), INK),
+        ("lab cone $R$ = 1.2\nat fixed $(W, Q)$", _cell_slopes(labj, "W", BEAM_CELLS_W, "n90"), INK),
         ("whole current hemisphere,\nfrom lab momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n90"), INK),
         ("$\\gamma^*p$-frame jet,\nfrom lab momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n90"), INK),
         ("whole current hemisphere,\nfrom frame momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n90_cm"), "#2f6b4f"),
         ("$\\gamma^*p$-frame jet,\nfrom frame momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n90_cm"), "#2f6b4f"),
-        ("either object,\nin its own rest frame", [], "#2f6b4f"),
     ]
     fig, ax = plt.subplots(figsize=(5.4, 4.5))
     ax.axvline(0.0, color=FAINT, lw=0.9, zorder=0)
@@ -999,12 +1030,12 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
         if sd is not None and len(sd):
             sd = np.asarray(sd, float)
             msd = np.median(sd)
-            ax.plot([max(sd.min(), -0.62), sd.max()], [y - 0.17, y - 0.17], color=SD, lw=1.0,
+            ax.plot([sd.min(), sd.max()], [y - 0.17, y - 0.17], color=SD, lw=1.0,
                     alpha=0.35, solid_capstyle="butt")
-            ax.plot([max(msd, -0.60)], [y - 0.17], marker="s", ms=4.5, color=SD, mec="white",
+            ax.plot([msd], [y - 0.17], marker="s", ms=4.5, color=SD, mec="white",
                     mew=0.6, zorder=3)
-            txt = f"{msd:+.3f}" + ("  (off scale)" if msd < -0.62 else "")
-            ax.annotate(txt, (max(msd, -0.60), y - 0.17), xytext=(7, 0),
+            txt = f"{msd:+.3f}"
+            ax.annotate(txt, (msd, y - 0.17), xytext=(7, 0),
                         textcoords="offset points", ha="left", va="center",
                         fontsize=7, color=SD)
     ax.set_yticks(ys)
@@ -1013,30 +1044,84 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     ax.spines["left"].set_visible(False)
     ax.set_ylim(-0.62, len(rungs) - 0.15)
     ax.set_xlabel(r"lab-frame dependence,  $\mathrm{d}\ln\langle\,\cdot\,\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
-    ax.set_xlim(-0.68, 0.36)
-    ax.set_xticks([-0.6, -0.4, -0.2, 0.0, 0.2])
-    range_frame(ax, np.array([-0.6, 0.3]), None)
-    ax.plot([-0.60], [len(rungs) - 0.42], marker="o", ms=4.5, color=INK, mec="white", mew=0.5)
-    ax.annotate(r"$n_{90}$", (-0.60, len(rungs) - 0.42), xytext=(6, 0),
+    ax.set_xlim(-0.12, 0.36)
+    ax.set_xticks([-0.1, 0.0, 0.1, 0.2, 0.3])
+    range_frame(ax, np.array([-0.1, 0.3]), None)
+    ax.plot([-0.10], [len(rungs) - 0.42], marker="o", ms=4.5, color=INK, mec="white", mew=0.5)
+    ax.annotate(r"$n_{90}$", (-0.10, len(rungs) - 0.42), xytext=(6, 0),
                 textcoords="offset points", fontsize=7.5, color=INK, va="center")
-    ax.plot([-0.60], [len(rungs) - 0.72], marker="s", ms=4.0, color=SD, mec="white", mew=0.5)
-    ax.annotate(r"$n_{\rm SD}$ ($e^+e^-$ variables)", (-0.60, len(rungs) - 0.72), xytext=(6, 0),
+    ax.plot([-0.10], [len(rungs) - 0.72], marker="s", ms=4.0, color=SD, mec="white", mew=0.5)
+    ax.annotate(r"$n_{\rm SD}$, standard form", (-0.10, len(rungs) - 0.72), xytext=(6, 0),
                 textcoords="offset points", fontsize=7.5, color=SD, va="center")
     ax.annotate("frame independent", (0.0, len(rungs) - 0.45), xytext=(0, 0),
                 textcoords="offset points", ha="center", fontsize=7, color=MUTED)
-    caption(ax, "Every rung is the same physics, measured differently, for $n_{90}$ (circles) and the "
-                "IRC-safe iterated soft-drop multiplicity $n_{\\rm SD}$ (squares).  Bars span individual "
-                "$(W, Q)$ cells across the 5$\\times$41, 10$\\times$100 and 18$\\times$275 GeV "
-                "configurations, which move the same colour-frame system through lab momenta differing "
-                "by up to a factor of seven.  Computing either observable from colour-frame momenta "
-                "leaves no measurable dependence on the lab.  The soft-drop squares use the $e^+e^-$ "
-                "form, with an absolute opening-angle cut, which a boost rescales; written the standard "
-                "way for hadron collisions it is flat in the laboratory too, $-0.016$ "
-                "(see sd_frame_choice).")
+    caption(ax, "Every rung is the same physics, measured differently: $n_{90}$ (circles) and the "
+                "IRC-safe iterated soft-drop multiplicity in its standard hadron-collider form "
+                "(squares).  Bars span individual $(W, Q)$ cells across the 5$\\times$41, "
+                "10$\\times$100 and 18$\\times$275 GeV configurations, which move the same "
+                "colour-frame system through lab momenta differing by up to a factor of seven.  Once "
+                "the colour-frame kinematics are fixed, nothing measured sensibly depends on the "
+                "laboratory; the steep inclusive slope is the sample changing, not the fragmentation.")
     save(fig, outdir, "frame_ladder")
     out = {f"n90 | {name.split(chr(10))[0]}": float(np.median(sl)) for name, sl, _ in rungs}
     out.update({f"nSD | {n.split(chr(10))[0]}": float(np.median(v)) for n, v in rungs_sd if len(v)})
     return out
+
+
+def fig_frame_breakers(beam_paths, outdir, inclusive_slope):
+    """
+    The avoidable choices that make a measurement depend on the laboratory, and by
+    how much.  Threshold and soft-drop-form values come from the JSON summaries
+    written by object_choice_test.py and sd_frame_test.py when present.
+    """
+    import json
+    hemi = [(l, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90", "n90_cm"],
+                           lambda d: np.isfinite(d["n90"]) & (d["plab"] > 1.0))) for l, p in beam_paths]
+    lab04 = [(l, _load_tree(p, "jets_R0p4", ["W", "Q2", "plab", "n90", "lead", "current"],
+                            lambda d: d["lead"] & d["current"] & np.isfinite(d["n90"]))) for l, p in beam_paths]
+    rows = [
+        ("no $(W, Q)$ control: the inclusive measurement", inclusive_slope, "n90"),
+        ("lab cone at $R$ = 0.4 instead of $R\\approx1$", np.median(_cell_slopes(lab04, "W", BEAM_CELLS_W, "n90")), "n90"),
+        ("ordering a wide object's constituents by lab momentum",
+         np.median(_cell_slopes(hemi, "W", BEAM_CELLS_W, "n90")), "n90"),
+    ]
+    for fname, key, label, obs in [
+        ("sd_frame_choice.json", "lab_ee", "soft drop with an opening-angle cut in the lab", "n_SD"),
+        ("object_choice.json", "gamma*p region, |p|>0.5", "$|\\vec p|_{\\rm lab} > 0.5$ GeV on every particle", "n90"),
+        ("object_choice.json", "gamma*p region, pT>0.15", "$p_T > 0.15$ GeV on every particle", "n90"),
+    ]:
+        path = os.path.join(outdir, fname)
+        if os.path.exists(path):
+            val = json.load(open(path)).get(key)
+            if val is not None:
+                rows.append((label, float(val), obs))
+    rows.sort(key=lambda r: -abs(r[1]))
+    fig, ax = plt.subplots(figsize=(5.4, 3.3))
+    ax.axvline(0.0, color=FAINT, lw=0.9, zorder=0)
+    ys = np.arange(len(rows))[::-1]
+    for y, (name, val, obs) in zip(ys, rows):
+        col = ACCENT if abs(val) > 0.1 else ("#b7791f" if abs(val) > 0.03 else "#2f6b4f")
+        ax.plot([0, val], [y, y], color=col, lw=2.4, solid_capstyle="butt", alpha=0.85)
+        ax.annotate(f"{val:+.3f}", (val, y), xytext=(6 if val >= 0 else -6, 0),
+                    textcoords="offset points", ha="left" if val >= 0 else "right", va="center",
+                    fontsize=7.5, color=col)
+    ax.set_yticks(ys)
+    ax.set_yticklabels([r[0] for r in rows], fontsize=8)
+    ax.tick_params(axis="y", length=0)
+    for side in ("left", "top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.set_ylim(-0.6, len(rows) - 0.4)
+    lo = min(-0.05, min(r[1] for r in rows) - 0.08)
+    hi = max(r[1] for r in rows) + 0.08
+    ax.set_xlim(lo, hi)
+    ax.spines["bottom"].set_bounds(np.floor(lo * 10) / 10, np.ceil(hi * 10) / 10)
+    ax.set_xlabel(r"lab-frame dependence introduced,  $\mathrm{d}\ln\langle\,\cdot\,\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
+    caption(ax, "Each bar is one choice a measurement could make, and the laboratory dependence it "
+                "introduces on the beam-energy test.  None of them is a property of fragmentation: "
+                "the first is a failure to control the colour-frame kinematics, the others are cuts "
+                "or variables that are not invariant under the boost along the beam.  The transverse "
+                "threshold at the bottom is the benign version of the one above it.")
+    save(fig, outdir, "frame_breakers")
 
 
 def fig_ladder_vs_radius(beam_paths, outdir):
@@ -1556,6 +1641,7 @@ def main():
         fig_beam_ordering(beam_paths, args.outdir)
         fig_beam_sd(beam_paths, args.outdir)
         byR = fig_ladder_vs_radius(beam_paths, args.outdir)
+        fig_frame_breakers(beam_paths, args.outdir, incl)
         print("  ladder vs radius (n90): " + ", ".join(f"R={k}:{v:+.3f}" for k, v in byR.items()))
         print("  frame ladder: " + ", ".join(f"{k}={v:+.3f}" for k, v in ladder.items()))
         for k, v in res.items():

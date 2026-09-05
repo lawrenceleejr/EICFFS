@@ -134,15 +134,20 @@ def main():
             mec="white", mew=0.5)
     ax.annotate(r"$n_{90}$, collinear split", (d[-1], rel(coll, 0, base[0])[-1]),
                 xytext=(7, 0), textcoords="offset points", fontsize=8, color=ACCENT, va="center")
-    ax.annotate(r"$n_{\rm SD}$, collinear split", (d[-1], rel(coll, 1, base[1])[-1]),
-                xytext=(7, -8), textcoords="offset points", fontsize=8, color=INK, va="center")
+    ax.annotate(r"$n_{\rm SD}$, collinear split: zero below $\theta_{\rm cut}$",
+                (d[0], rel(coll, 1, base[1])[0]), xytext=(8, 0), textcoords="offset points",
+                fontsize=8, color=INK, va="center")
     ax.annotate("soft additions (dashed):\nboth vanish in the limit", (e[-1], 6),
                 xytext=(7, 0), textcoords="offset points", fontsize=7.5, color=MUTED, va="center")
+    from analyze_events import SD_THETA_CUT
+    ax.axvline(SD_THETA_CUT, color=FAINT, lw=0.9, ls=(0, (3, 3)), zorder=0)
+    ax.annotate(r"$\theta_{\rm cut}$", (SD_THETA_CUT, 104), ha="center", va="bottom",
+                fontsize=7.5, color=MUTED)
     ax.set_xscale("log")
     ax.invert_xaxis()
     ax.set_xlabel(r"splitting angle $\delta$ [rad],  or soft fraction $\epsilon$   $\longrightarrow$ limit")
     ax.set_ylabel("change in the observable  [%]")
-    ax.set_ylim(-8, 115)
+    ax.set_ylim(-8, 118)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.text(0.0, -0.24,

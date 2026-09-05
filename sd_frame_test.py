@@ -182,7 +182,7 @@ def cell_lines(beams, key):
     return rows
 
 
-def draw_cells(beams, key, name, title, outdir, span, caption_text):
+def draw_cells(beams, key, name, title, outdir, span, caption_text, mark_top=False):
     """One panel: the cell lines across beam energies, log axes, fixed vertical span."""
     rows = cell_lines(beams, key)
     fig, ax = plt.subplots(figsize=(4.8, 3.5))
@@ -205,21 +205,32 @@ def draw_cells(beams, key, name, title, outdir, span, caption_text):
     ax.set_xlim(0.9, 170)
     ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
     ax.set_ylabel(r"$\langle n_{\rm SD}\rangle$")
-    ax.set_title(title, fontsize=9, loc="left")
+    ax.set_title(title, fontsize=9, loc="left", pad=18)
     range_frame(ax, np.concatenate([r[4] for r in rows]), allv)
-    # one label per W family, on its right-most cell, pushed apart vertically
+    # marker key for Q, and the beam configurations named under one cell
+    kx = 0.0
+    for iq, (qlo, qhi) in enumerate(Q_CELLS):
+        ax.plot([kx], [1.05], marker=Q_MARKERS[iq], ms=3.4, color=MUTED, mec="white", mew=0.4,
+                transform=ax.transAxes, clip_on=False)
+        ax.annotate(rf"$Q$ = {qlo:g}$-${qhi:g} GeV" if iq == 0 else rf"{qlo:g}$-${qhi:g}",
+                    (kx, 1.05), xytext=(6, 0), textcoords="offset points", xycoords="axes fraction",
+                    va="center", ha="left", fontsize=7, color=MUTED)
+        kx += 0.30 if iq == 0 else 0.17
+    # beam names go under the lowest line (nothing beneath it) or above the highest
+    pick = (max if mark_top else min)(rows, key=lambda r: np.mean(np.log(r[5])))
+    for x, y, lab in zip(pick[4], pick[5], beams.keys()):
+        ax.annotate(lab.replace("x", "$\\times$"), (x, y), xytext=(0, 9 if mark_top else -12),
+                    textcoords="offset points", fontsize=6.5, color=MUTED, ha="center")
+    # one label per W family, on its right-most cell, in a leader-line column
+    from make_figures import EndLabels
     best = {}
     for iw, iq, wlo, whi, xs, ys, es in rows:
         if iw not in best or xs[-1] > best[iw][0]:
             best[iw] = (xs[-1], ys[-1], wlo, whi)
-    fig.canvas.draw()
-    items = sorted(best.items(), key=lambda kv: kv[1][1])
-    pts = [ax.transData.transform((v[0], v[1]))[1] * 72.0 / fig.dpi for _, v in items]
-    top = max(ax.transData.transform((1.0, v))[1] * 72.0 / fig.dpi for v in allv)
-    target = [top + 12.0 + 11.0 * i for i in range(len(items))]
-    for (iw, (x, y, wlo, whi)), p0, p1 in zip(items, pts, target):
-        ax.annotate(rf"$W$ = {wlo}$-${whi} GeV", (x, y), xytext=(7, p1 - p0),
-                    textcoords="offset points", fontsize=7, color=W_COLS[iw], va="center")
+    labels = EndLabels(ax, min_sep_pt=9.0, fontsize=7)
+    for iw, (x, y, wlo, whi) in best.items():
+        labels.add(x, y, rf"$W$ = {wlo}$-${whi} GeV", W_COLS[iw])
+    labels.draw(column=True)
     t = ax.text(0.0, -0.26, caption_text, transform=ax.transAxes, fontsize=7.5, color=MUTED,
                 va="top", ha="left", wrap=True)
     t._is_caption = True
@@ -257,6 +268,11 @@ def main():
         rows.append((name, sl, mean, col))
         print(f"{name.replace(chr(10), ' '):<46}{np.median(sl):>+9.3f}"
               f"{np.max(np.abs(sl)):>8.3f}{mean:>7.2f}")
+
+    import json
+    with open(os.path.join(args.outdir, "sd_frame_choice.json"), "w") as fh:
+        json.dump({key: float(np.median(sl)) for (name, key, col), (n2, sl, mean, c2)
+                   in zip(variants, rows)}, fh, indent=1)
 
     fig, ax = plt.subplots(figsize=(5.0, 3.4))
     ax.axvline(0.0, color=FAINT, lw=0.9, zorder=0)
@@ -300,7 +316,7 @@ def main():
                "18$\\times$275 GeV, so the colour-frame physics is identical along it and only the "
                "laboratory frame changes.  With an absolute opening-angle cut the observable collapses "
                "as the beams get harder: the hemisphere collimates below $\\theta_{\\rm cut}$ and its "
-               "branchings stop being counted.  Median exponent $-0.474$.")
+               "branchings stop being counted.  Median exponent $-0.474$.", mark_top=True)
     draw_cells(beams, "beam_pp", "beam_energy_sd_standard",
                r"$n_{\rm SD}$, standard $pp$ variables in the laboratory", args.outdir, span,
                "The same cells and the same laboratory measurement, with soft drop written the standard "

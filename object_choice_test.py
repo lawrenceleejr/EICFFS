@@ -132,6 +132,12 @@ def main():
         print(f"{plain:<40}{np.median(sl):>+9.3f}{np.max(np.abs(sl)):>8.3f}"
               f"{nc:>7.2f}{100*empty:>6.0f}%{len(sl):>7}")
 
+    import json
+    keys = ["Breit hemisphere", "Breit hemisphere, |p|>0.5", "Breit hemisphere, pT>0.15",
+            "gamma*p region", "gamma*p region, |p|>0.5", "gamma*p region, pT>0.15"]
+    with open(os.path.join(args.outdir, "object_choice.json"), "w") as fh:
+        json.dump({k: float(r[1]) for k, r in zip(keys, rows)}, fh, indent=1)
+
     fig, ax = plt.subplots(figsize=(5.2, 3.4))
     ax.axvline(0.0, color=FAINT, lw=0.9, zorder=0)
     ys = np.arange(len(rows))[::-1]
