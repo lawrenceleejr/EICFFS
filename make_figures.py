@@ -763,7 +763,7 @@ def _draw_beam_rows(ax, rows, colors):
                     marker=Q_MARKERS[iq], ms=3.5, mec="white", mew=0.4)
         labels.add(xs, ys, name, col)
         allx.append(xs); ally.append(ys)
-        flat.append(100 * (ys.max() - ys.min()) / ys.mean())
+        flat.append(np.polyfit(np.log(xs), np.log(ys), 1)[0])    # d ln<n90> / d ln p_lab per cell
     return labels, np.concatenate(allx), np.concatenate(ally), flat
 
 
@@ -804,11 +804,13 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     range_frame(ax, allx, ally)
     labels.draw()
     med = float(np.median(flat))
+    incl_slope = np.polyfit(np.log(xc[ok]), np.log(mu[ok]), 1)[0] if inclusive_path else np.nan
     caption(ax, "Each line is one cell of fixed $(W, Q)$, so fixed colour-frame kinematics, measured "
-                "in three EIC beam configurations.  The beam energy changes only the lab frame; the "
-                "current hemisphere's lab momentum moves by a large factor along each line and "
-                f"$\\langle n_{{90}}\\rangle$ does not: median variation {med:.0f}%.  The grey band is "
-                "the inclusive curve at one beam energy.  Marker shape encodes the $Q$ bin.")
+                "in three EIC beam configurations.  The beam energy changes only the lab frame.  Along "
+                "each line the current hemisphere's lab momentum moves by up to a factor of ten and "
+                f"$\\langle n_{{90}}\\rangle$ does not follow: median slope d ln$\\langle n_{{90}}\\rangle$/d ln$p$ = "
+                f"{med:+.2f} per cell, against {incl_slope:+.2f} for the inclusive curve (grey).  "
+                "Marker shape encodes the $Q$ bin.")
     save(fig, outdir, "beam_energy_hemisphere")
     results["hemisphere"] = flat
 
@@ -829,17 +831,21 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     labels.draw()
     med_j = float(np.median(flat))
     caption(ax, "The same cells and beam configurations, now for the leading anti-$k_T$ $R$ = 0.4 jet "
-                "clustered in the lab.  Fixed colour-frame kinematics no longer gives a fixed answer "
-                f"(median variation {med_j:.0f}%): the boost changes which particles the cone holds.")
+                f"clustered in the lab: median slope {med_j:+.2f}, and the lowest-energy configuration "
+                "breaks away in the higher-$Q$ cells.  The boost changes which particles the cone holds.")
     save(fig, outdir, "beam_energy_labjet")
     results["labjet"] = flat
 
     # -- gamma*p-frame jets at fixed (E_cm, Q) ------------------------------
-    beams_c = [(lab, _load_tree(p, "cmjets", ["e_hcm", "Q2", "plab", "n90"],
-                                lambda d: np.isfinite(d["n90"])))
-               for lab, p in beam_paths]
-    for _, d in beams_c:
-        pass
+    def _cm(d):
+        # unify names with the other trees; n90 from lab momenta is the lab observable
+        return {"e_hcm": d["e_cm"], "Q2": d["Q2"], "plab": d["p_lab"], "n90": d["n90_labmom"]}
+    beams_c = []
+    for lab, p in beam_paths:
+        d = uproot.open(p)["cmjets"].arrays(["e_cm", "Q2", "p_lab", "n90_labmom"], library="np")
+        d = _cm(d)
+        m = np.isfinite(d["n90"])
+        beams_c.append((lab, {k: v[m] for k, v in d.items()}))
     rows = _beam_cells(beams_c, ecm_cells=True)
     if rows:
         fig, ax = plt.subplots(figsize=(4.8, 3.8))
@@ -853,8 +859,9 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         range_frame(ax, allx, ally)
         labels.draw()
         med_c = float(np.median(flat))
-        caption(ax, "Jets clustered in the colour rest frame, cells of fixed jet energy in that frame "
-                    f"and fixed $Q$, across the three beam configurations: median variation {med_c:.0f}%.")
+        caption(ax, "Jets clustered in the colour rest frame with $n_{90}$ computed from their lab "
+                    "momenta, in cells of fixed jet energy in that frame and fixed $Q$, across the three "
+                    f"beam configurations: median slope {med_c:+.2f}.")
         save(fig, outdir, "beam_energy_cmjet")
         results["cmjet"] = flat
     return results
@@ -1213,8 +1220,8 @@ def main():
         beam_paths.sort(key=lambda t: float(t[0].split("x")[0]) * float(t[0].split("x")[1]))
         res = fig_beam_energy(beam_paths, args.outdir, inclusive_path="10x100")
         for k, v in res.items():
-            print(f"  beam-energy test, {k}: variation per cell "
-                  + ", ".join(f"{x:.0f}%" for x in v) + f"  (median {np.median(v):.0f}%)")
+            print(f"  beam-energy test, {k}: slope per cell "
+                  + ", ".join(f"{x:+.2f}" for x in v) + f"  (median {np.median(v):+.2f})")
     sp_incl = fig_hemisphere_vs_p(trees, args.outdir)
     sp_fq = fig_hemisphere_vs_p_fixed_q(trees, args.outdir)
     fig_hemisphere_p_vs_q(trees, args.outdir)

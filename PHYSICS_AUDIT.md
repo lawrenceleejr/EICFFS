@@ -171,6 +171,41 @@ the current hemisphere of the Breit frame, or equivalently a jet defined in the
 lab-frame jets of any usable radius carry a residual boost dependence of about
 0.3 to 0.4 in the exponent.
 
+### The clean test: change the lab frame, keep the physics
+
+Within one beam configuration the lab frame is a deterministic function of the
+DIS kinematics, so once the colour-frame variables are fixed nothing is left
+to vary.  The independent knob is the beam energy.  At the same (W, Q) the
+EIC's 5 × 41, 10 × 100 and 18 × 275 GeV configurations put identical
+colour-frame physics into three different lab frames; the current
+hemisphere's lab momentum changes by up to a factor of ten.  If fragmentation
+does not care about the lab frame, ⟨n₉₀⟩ computed from lab momenta must be
+the same in all three.  Samples: 1.2 M events each at 5 × 41 and 18 × 275
+(W > 10 GeV), against the 2.4 M at 10 × 100; cells W ∈ {10–15, 15–22, 22–28}
+× Q ∈ {2.2–3.3, 3.3–5, 5–7.5} GeV with at least 400 entries per beam.
+
+Slope d ln⟨n₉₀⟩ / d ln|p|_lab across the three beam configurations, per cell:
+
+| object | cells | median slope | range |
+|---|---|---|---|
+| whole Breit current hemisphere, lab n₉₀ | 9 | −0.05 | −0.13 to 0.00 |
+| leading anti-kT R = 0.4 lab jet | 8 | +0.04 | 0.00 to +0.14 |
+| γ*p-frame jet (0.4 rad), n₉₀ from lab momenta, fixed (E_cm, Q) | 15 | 0.00 | −0.01 to +0.02 |
+| inclusive hemisphere at 10 × 100, for comparison | — | ≈ +0.25 | — |
+
+`figures/beam_energy_hemisphere.pdf` shows the flat lines lying across the
+inclusive curve; `beam_energy_cmjet.pdf` is the cleanest statement of frame
+independence, every cell flat to two percent in the exponent;
+`beam_energy_labjet.pdf` shows the lab cone breaking away in the lowest-energy
+configuration for the higher-Q cells.  The hemisphere's slight negative slope
+comes from the W = 22–28 GeV cells at 5 × 41, where W is at the edge of the
+available phase space (W_max ≈ 28.6 GeV, y → 1) and the current hemisphere
+is going backward in the lab.
+
+This is the measurement the EIC can make that e⁺e⁻ cannot: the same
+colour-singlet system observed in three lab frames, with the boost changed by
+the accelerator rather than by the event.
+
 ### The whole current hemisphere against full lab momentum
 
 The most direct version of the test asks for the whole current system, every

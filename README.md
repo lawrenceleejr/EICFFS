@@ -145,6 +145,10 @@ conda activate eicffs
 python generate_events.py --n-events 300000 --seed 1 --Wmin 10 --output data/events_1.parquet --quiet
 python analyze_events.py  "data/events_*.parquet" --output data/analysis.root
 python make_figures.py    data/analysis.root --events data/events_1.parquet --outdir figures/
+
+# beam-energy test: generate 5x41 and 18x275 samples the same way, analyse each, then
+python make_figures.py data/analysis.root --outdir figures/ \
+    --beams 5x41=data/analysis_e5p41.root 18x275=data/analysis_e18p275.root
 ```
 
 `pip install pythia8mc fastjet uproot awkward hist vector matplotlib scipy pyarrow`
@@ -210,6 +214,7 @@ following Tufte: range frames, direct labels, no grids or legends.
 | `flat_cmjets.pdf` | **Primary result**: ⟨n₉₀⟩ of colour-frame jets vs *p*_T^lab, sliced in *E*_cm — flat |
 | `flat_labjets.pdf` | the same test for lab jets — the slices collapse and rise, spanning 85 % |
 | `universal_cm.pdf` | ⟨n₉₀⟩ vs *E*_cm sliced in *p*_T^lab — one curve |
+| `beam_energy_hemisphere.pdf`, `beam_energy_cmjet.pdf`, `beam_energy_labjet.pdf` | fixed (*W*, *Q*) cells across 5×41, 10×100 and 18×275 GeV: same physics, three lab frames (needs `--beams`) |
 | `hemisphere_vs_p.pdf`, `hemisphere_vs_p_fixed_q.pdf` | whole current hemisphere against full lab momentum, inclusive and sliced in *E*_cm, then at fixed *Q* |
 | `hemisphere_p_vs_q.pdf` | at fixed *W* the current system's lab momentum is a function of *Q*: no independent boost knob |
 | `slope_vs_radius.pdf` | residual lab-p_T dependence at fixed *Q* and *E*_cm against jet radius |
