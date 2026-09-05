@@ -10,8 +10,9 @@ finds anti-kT R = 0.4 jets in the laboratory frame, and writes
   * a per-jet TTree ``cmjets`` for jets clustered *in the colour rest frame*
     with an angular (e+e-) anti-kT algorithm, carrying the jet's energy in
     that frame and its momentum back in the lab,
-  * reduced trees ``jets_R0p8``, ``jets_R1p2``, ``jets_R1p6`` for larger lab
-    radii and ``hemisphere`` for the whole Breit current hemisphere, and
+  * reduced trees ``jets_R0p4`` … ``jets_R2p4`` for a scan of lab radii and
+    ``hemisphere`` for the whole Breit current hemisphere (the infinite-radius
+    limit), each carrying the fraction of the current system the jet captures, and
   * a per-event TTree ``events``, and
   * the legacy histograms used by make_plots.py (filled with current jets),
 
@@ -88,7 +89,7 @@ CM_E_MIN = 1.0       # GeV, minimum jet energy in the colour rest frame
 
 # Additional lab-frame radii, written to trees jets_R0p8 etc. with a reduced
 # column set, to test whether a larger cone changes the frame dependence.
-EXTRA_LAB_RADII = (0.8, 1.2, 1.6)
+EXTRA_LAB_RADII = (0.8, 1.2, 1.6, 2.4)
 
 
 # ---------------------------------------------------------------------------
@@ -315,11 +316,15 @@ def _vec4(rec):
 
 
 def lab_jets_at_radius(parts, charge, R, L_hcm, L_breit, qhat_breit, n_ev,
-                       W, Q2, use_fastjet=True):
+                       W, Q2, hemi_p=None, use_fastjet=True):
     """
     Lab-frame anti-kT jets at radius R with the frame quantities needed for the
     flatness test: colour-frame energy, Breit-hemisphere flag and n₉₀.
-    Returns a dict of flat arrays (reduced column set).
+
+    ``hemi_p`` is the scalar sum of lab momenta of the Breit current hemisphere
+    in each event.  It turns into the ``captured`` column, the fraction of the
+    current system the jet holds — the quantity that makes a fixed lab cone
+    boost-dependent.  ``lead`` marks the hardest current jet in each event.
     """
     if use_fastjet:
         jets, cidx = cluster_fastjet(parts, R=R)
@@ -345,9 +350,18 @@ def lab_jets_at_radius(parts, charge, R, L_hcm, L_breit, qhat_breit, n_ev,
     jet_of_c = np.repeat(np.arange(n_j), n_const)
     c_p = np.sqrt(ak.to_numpy(ak.flatten(c_flat.px))**2 + ak.to_numpy(ak.flatten(c_flat.py))**2
                   + ak.to_numpy(ak.flatten(c_flat.pz))**2)
+    p_lab = np.linalg.norm(J[:, :3], axis=1)
+    captured = (p_lab / np.maximum(hemi_p[ev_of_jet], 1e-9)
+                if hemi_p is not None else np.full(n_j, np.nan))
+    lead = np.zeros(n_j, dtype=bool)
+    sel = np.where(current)[0]
+    if len(sel):
+        srt = sel[np.lexsort((-p_lab[sel], ev_of_jet[sel]))]
+        lead[srt[np.concatenate([[True], ev_of_jet[srt][1:] != ev_of_jet[srt][:-1]])]] = True
     return {
         "W": W[ev_of_jet], "Q2": Q2[ev_of_jet],
-        "pt": np.hypot(J[:, 0], J[:, 1]), "plab": np.linalg.norm(J[:, :3], axis=1),
+        "captured": captured, "lead": lead,
+        "pt": np.hypot(J[:, 0], J[:, 1]), "plab": p_lab,
         "eta": np.arcsinh(J[:, 2] / np.maximum(np.hypot(J[:, 0], J[:, 1]), 1e-9)),
         "e_hcm": J_hcm[:, 3], "p_hcm": np.linalg.norm(J_hcm[:, :3], axis=1),
         "current": current, "n_const": n_const.astype(np.int32),
@@ -371,6 +385,9 @@ def current_hemisphere(A, A_cm, A_breit, qhat_breit, ev_of_par, charge_flat, n_e
     return {
         "W": W, "Q2": Q2,
         "pt": np.hypot(H[:, 0], H[:, 1]), "plab": np.linalg.norm(H[:, :3], axis=1),
+        "p_scalar": np.bincount(ev_of_par[cur],
+                                weights=np.linalg.norm(A[cur][:, :3], axis=1),
+                                minlength=n_ev),
         "e_hcm": H_cm[:, 3],
         "n_const": np.bincount(ev_of_par[cur], minlength=n_ev).astype(np.int32),
         "n_charged": np.bincount(ev_of_par[cur & (charge_flat != 0)], minlength=n_ev).astype(np.int32),
@@ -554,13 +571,14 @@ def analyze_chunk(events, use_fastjet=True):
     ev_out["n_cm_jets"] = n_cj_ev.astype(np.int32)
 
     # ── Larger lab radii and the whole current hemisphere ─────────────────
-    extra = {}
-    for R_extra in EXTRA_LAB_RADII:
-        extra[f"jets_R{R_extra:.1f}".replace(".", "p")] = lab_jets_at_radius(
-            parts, charge, R_extra, L_hcm, L_breit, qhat_breit, n_ev, W, Q2, use_fastjet)
     A_breit = np.einsum("nij,nj->ni", L_breit[ev_of_par], A)
-    extra["hemisphere"] = current_hemisphere(
+    hemi = current_hemisphere(
         A, A_cm, A_breit, qhat_breit, ev_of_par, ak.to_numpy(ak.flatten(charge)), n_ev, W, Q2)
+    extra = {"hemisphere": hemi}
+    for R_extra in (JET_R,) + EXTRA_LAB_RADII:
+        extra[f"jets_R{R_extra:.1f}".replace(".", "p")] = lab_jets_at_radius(
+            parts, charge, R_extra, L_hcm, L_breit, qhat_breit, n_ev, W, Q2,
+            hemi_p=hemi["p_scalar"], use_fastjet=use_fastjet)
     return ev_out, jet_out, cj_out, extra
 
 
