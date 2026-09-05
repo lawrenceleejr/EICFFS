@@ -712,6 +712,155 @@ def fig_hemisphere_p_vs_q(trees, outdir):
 
 
 # ---------------------------------------------------------------------------
+# Beam-energy test: same (W, Q), three lab frames
+# ---------------------------------------------------------------------------
+
+BEAM_CELLS_W = [(10, 15), (15, 22), (22, 28)]
+BEAM_CELLS_Q = [(2.2, 3.3), (3.3, 5.0), (5.0, 7.5)]
+Q_MARKERS = {0: "o", 1: "s", 2: "^"}
+BEAM_MIN = 400
+
+
+def _load_tree(path, tree, cols, sel_fn):
+    d = uproot.open(path)[tree].arrays(cols, library="np")
+    m = sel_fn(d)
+    return {k: v[m] for k, v in d.items()}
+
+
+def _beam_cells(beams, xkey="plab", ecm_cells=False):
+    """
+    For each (W or E_cm, Q) cell and each beam: median lab momentum, <n90>, sem.
+    Returns list of (cell label, W index, Q index, [(x, y, e, beam label), ...]).
+    """
+    rows = []
+    kcells = E_SLICES if ecm_cells else BEAM_CELLS_W
+    kvar = "e_hcm" if ecm_cells else "W"
+    for iw, (wlo, whi) in enumerate(kcells):
+        for iq, (qlo, qhi) in enumerate(BEAM_CELLS_Q):
+            pts = []
+            for label, d in beams:
+                Q = np.sqrt(d["Q2"])
+                m = (d[kvar] >= wlo) & (d[kvar] < whi) & (Q >= qlo) & (Q < qhi)
+                if m.sum() < BEAM_MIN:
+                    pts = []
+                    break
+                v = d["n90"][m]
+                pts.append((np.median(d[xkey][m]), v.mean(), v.std(ddof=1) / np.sqrt(len(v)), label))
+            if len(pts) == len(beams):
+                name = (rf"$E_{{\rm cm}}$ {wlo:g}$-${whi:g}, $Q$ {qlo:g}$-${qhi:g}" if ecm_cells
+                        else rf"$W$ {wlo:g}$-${whi:g}, $Q$ {qlo:g}$-${qhi:g}")
+                rows.append((name, iw, iq, pts))
+    return rows
+
+
+def _draw_beam_rows(ax, rows, colors):
+    labels = EndLabels(ax, min_sep_pt=8.5, fontsize=7)
+    allx, ally, flat = [], [], []
+    for name, iw, iq, pts in rows:
+        xs = np.array([p[0] for p in pts]); ys = np.array([p[1] for p in pts]); es = np.array([p[2] for p in pts])
+        col = colors[iw]
+        ax.errorbar(xs, ys, yerr=es, color=col, lw=1.1, elinewidth=0.6, capsize=0,
+                    marker=Q_MARKERS[iq], ms=3.5, mec="white", mew=0.4)
+        labels.add(xs, ys, name, col)
+        allx.append(xs); ally.append(ys)
+        flat.append(100 * (ys.max() - ys.min()) / ys.mean())
+    return labels, np.concatenate(allx), np.concatenate(ally), flat
+
+
+def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
+    """
+    beam_paths: list of (label, path) in increasing sqrt(s).  Three figures:
+    hemisphere at fixed (W, Q); leading R = 0.4 lab jet at fixed (W, Q);
+    gamma*p-frame jets at fixed (E_cm, Q).
+    """
+    results = {}
+
+    # -- whole current hemisphere ------------------------------------------
+    beams = [(lab, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90"],
+                              lambda d: np.isfinite(d["n90"]) & (d["plab"] > 1.0)))
+             for lab, p in beam_paths]
+    rows = _beam_cells(beams)
+    fig, ax = plt.subplots(figsize=(4.8, 3.8))
+    if inclusive_path:
+        d = beams[[l for l, _ in beam_paths].index(inclusive_path)][1]
+        xc, mu, se = profile(d["plab"], d["n90"], P_HEMI, min_entries=200)
+        ok = np.isfinite(mu)
+        ax.plot(xc[ok], mu[ok], color=FAINT, lw=2.4, zorder=0)
+        ax.annotate(f"all hemispheres, {inclusive_path}", (xc[ok][-1], mu[ok][-1]),
+                    xytext=(6, 0), textcoords="offset points", fontsize=7, color=MUTED, va="center")
+    labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
+    # beam labels along one row
+    if rows:
+        _, _, _, pts = rows[len(rows) // 2]
+        for x, y, _, lab in pts:
+            ax.annotate(lab, (x, y), xytext=(0, -12), textcoords="offset points",
+                        fontsize=6.5, color=MUTED, ha="center")
+    ax.set_xscale("log")
+    ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$")
+    ax.set_xlim(0.9, 200)
+    range_frame(ax, allx, ally)
+    labels.draw()
+    med = float(np.median(flat))
+    caption(ax, "Each line is one cell of fixed $(W, Q)$, so fixed colour-frame kinematics, measured "
+                "in three EIC beam configurations.  The beam energy changes only the lab frame; the "
+                "current hemisphere's lab momentum moves by a large factor along each line and "
+                f"$\\langle n_{{90}}\\rangle$ does not: median variation {med:.0f}%.  The grey band is "
+                "the inclusive curve at one beam energy.  Marker shape encodes the $Q$ bin.")
+    save(fig, outdir, "beam_energy_hemisphere")
+    results["hemisphere"] = flat
+
+    # -- leading R = 0.4 lab jet: the cone breaks the invariance -----------
+    beams_j = [(lab, _load_tree(p, "jets_R0p4", ["W", "Q2", "plab", "n90", "lead", "current"],
+                                lambda d: d["lead"] & d["current"] & np.isfinite(d["n90"])))
+               for lab, p in beam_paths]
+    rows = _beam_cells(beams_j)
+    fig, ax = plt.subplots(figsize=(4.8, 3.8))
+    labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
+    ax.set_xscale("log")
+    ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
+    ax.minorticks_off()
+    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the leading lab jet, $R$ = 0.4  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$")
+    ax.set_xlim(0.9, 200)
+    range_frame(ax, allx, ally)
+    labels.draw()
+    med_j = float(np.median(flat))
+    caption(ax, "The same cells and beam configurations, now for the leading anti-$k_T$ $R$ = 0.4 jet "
+                "clustered in the lab.  Fixed colour-frame kinematics no longer gives a fixed answer "
+                f"(median variation {med_j:.0f}%): the boost changes which particles the cone holds.")
+    save(fig, outdir, "beam_energy_labjet")
+    results["labjet"] = flat
+
+    # -- gamma*p-frame jets at fixed (E_cm, Q) ------------------------------
+    beams_c = [(lab, _load_tree(p, "cmjets", ["e_hcm", "Q2", "plab", "n90"],
+                                lambda d: np.isfinite(d["n90"])))
+               for lab, p in beam_paths]
+    for _, d in beams_c:
+        pass
+    rows = _beam_cells(beams_c, ecm_cells=True)
+    if rows:
+        fig, ax = plt.subplots(figsize=(4.8, 3.8))
+        labels, allx, ally, flat = _draw_beam_rows(ax, rows, E_COLORS)
+        ax.set_xscale("log")
+        ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
+        ax.minorticks_off()
+        ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the $\gamma^*p$-frame jet  [GeV]")
+        ax.set_ylabel(r"$\langle n_{90}\rangle$")
+        ax.set_xlim(0.9, 200)
+        range_frame(ax, allx, ally)
+        labels.draw()
+        med_c = float(np.median(flat))
+        caption(ax, "Jets clustered in the colour rest frame, cells of fixed jet energy in that frame "
+                    f"and fixed $Q$, across the three beam configurations: median variation {med_c:.0f}%.")
+        save(fig, outdir, "beam_energy_cmjet")
+        results["cmjet"] = flat
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Figure 2b: the boost factor — same colour-frame jet, different lab boosts
 # ---------------------------------------------------------------------------
 
@@ -1042,6 +1191,9 @@ def parse_args():
     p.add_argument("--outdir", default="figures/")
     p.add_argument("--events", default=None,
                    help="Optional event Parquet file for the rapidity-plateau figure")
+    p.add_argument("--beams", nargs="*", default=None, metavar="LABEL=FILE",
+                   help="Analysis files for other beam configurations, e.g. "
+                        "5x41=data/analysis_e5p41.root; the main input is labelled 10x100")
     return p.parse_args()
 
 
@@ -1053,6 +1205,16 @@ def main():
     fig_capture(trees, args.outdir)
     med_r04, med_hemi = fig_fixed_q(trees, args.outdir)
     slopes_R, slope_h = fig_slope_vs_radius(trees, args.outdir)
+    if args.beams:
+        beam_paths = [("10x100", args.inputs[0])]
+        for item in args.beams:
+            lab, path = item.split("=", 1)
+            beam_paths.append((lab, path))
+        beam_paths.sort(key=lambda t: float(t[0].split("x")[0]) * float(t[0].split("x")[1]))
+        res = fig_beam_energy(beam_paths, args.outdir, inclusive_path="10x100")
+        for k, v in res.items():
+            print(f"  beam-energy test, {k}: variation per cell "
+                  + ", ".join(f"{x:.0f}%" for x in v) + f"  (median {np.median(v):.0f}%)")
     sp_incl = fig_hemisphere_vs_p(trees, args.outdir)
     sp_fq = fig_hemisphere_vs_p_fixed_q(trees, args.outdir)
     fig_hemisphere_p_vs_q(trees, args.outdir)
