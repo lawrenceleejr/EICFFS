@@ -83,6 +83,7 @@ EICFFS/
 ├── generate_events.py       # Step 1 — Pythia8 NC-DIS event generation
 ├── analyze_events.py        # Step 2 — jets, frame boosts, n₉₀ → ROOT trees + histograms
 ├── make_figures.py          # Step 3 — Tufte-style figures (one panel per PDF)
+├── irc_safety_test.py       # IRC safety of n₉₀ against soft-drop multiplicity
 ├── make_plots.py            # Legacy multi-panel plots from the histograms
 │
 ├── utils/
@@ -215,6 +216,8 @@ following Tufte: range frames, direct labels, no grids or legends.
 | `flat_cmjets.pdf` | **Primary result**: ⟨n₉₀⟩ of colour-frame jets vs *p*_T^lab, sliced in *E*_cm — flat |
 | `flat_labjets.pdf` | the same test for lab jets — the slices collapse and rise, spanning 85 % |
 | `universal_cm.pdf` | ⟨n₉₀⟩ vs *E*_cm sliced in *p*_T^lab — one curve |
+| `irc_safety.pdf` | collinear and soft safety of n₉₀ against n_SD (from `irc_safety_test.py`) |
+| `beam_energy_sd.pdf` | n_SD across beam configurations, computed in the lab and in the colour frame |
 | `frame_ladder.pdf` | **headline**: lab-frame dependence of each definition, across three beam configurations |
 | `beam_energy_ordering.pdf` | the same hemispheres ordered by lab and by colour-frame momenta |
 | `beam_energy_hemisphere.pdf`, `beam_energy_cmjet.pdf`, `beam_energy_labjet.pdf` | fixed (*W*, *Q*) cells across 5×41, 10×100 and 18×275 GeV: same physics, three lab frames (needs `--beams`) |

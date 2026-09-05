@@ -24,14 +24,20 @@ fragmentation is a property of the colour rest frame, ⟨n₉₀⟩ must not mov
 It does not.  Measuring the lab-frame dependence as the exponent
 d ln⟨n₉₀⟩ / d ln|p|_lab across the three configurations:
 
-| what is measured | median exponent |
-|---|---|
-| all hemispheres, one beam energy, no control | **+0.277** |
-| leading anti-kT *R* = 0.4 lab jet, fixed (*W*, *Q*) | +0.038 |
-| whole current hemisphere, n₉₀ from lab momenta | −0.050 |
-| γ*p-frame jet, n₉₀ from lab momenta | −0.001 |
-| whole current hemisphere, n₉₀ from colour-frame momenta | −0.008 |
-| γ*p-frame jet, n₉₀ from colour-frame momenta | +0.015 |
+| what is measured | n₉₀ | n_SD |
+|---|---|---|
+| all hemispheres, one beam energy, no control | **+0.277** | non-monotonic |
+| leading anti-kT *R* = 0.4 lab jet, fixed (*W*, *Q*) | +0.038 | −1.48 |
+| whole current hemisphere, from lab momenta | −0.050 | −0.513 |
+| γ*p-frame jet, from lab momenta | −0.001 | −0.430 |
+| whole current hemisphere, from colour-frame momenta | −0.008 | −0.007 |
+| γ*p-frame jet, from colour-frame momenta | +0.015 | +0.016 |
+
+n_SD is the iterated soft-drop multiplicity, an IRC-safe counting observable
+used here as a cross-check on n₉₀ (Sec. 3).  It gives the same answer where it
+matters — no lab dependence once the observable is built in the colour frame —
+but it is far more fragile when computed in the laboratory, because its
+angular cut is a laboratory angle and a boost rescales angles.
 
 The steep inclusive slope is not fragmentation responding to the laboratory.
 It is the (*W*, *Q*) content of the sample changing along the axis.  Once the
@@ -40,9 +46,9 @@ frame, the residual dependence on a factor of seven in laboratory momentum is
 consistent with zero (`figures/frame_ladder.pdf`).
 
 Everything between those two extremes is a choice made in the laboratory: a
-fixed cone keeps a boost-dependent share of the shower, and ordering
-constituents by laboratory momentum is not boost-invariant.  Both are
-quantified below.
+fixed cone keeps a boost-dependent share of the shower, ordering constituents
+by laboratory momentum is not boost-invariant, and an angular cut applied in
+the laboratory is rescaled by the boost.  All three are quantified below.
 
 ---
 
@@ -183,6 +189,89 @@ put in the bin, and none of it is fragmentation responding to the laboratory.
 
 ---
 
+## 3. An IRC-safe alternative: iterated soft-drop multiplicity
+
+n₉₀ has a defect worth stating plainly, because the original framework claimed
+otherwise: **it is infrared safe but collinear unsafe.**  Splitting a
+constituent into two collinear halves changes how many particles are needed to
+reach 90 % of the momentum, and the change does not go away as the splitting
+angle goes to zero.
+
+The natural IRC-safe counting observable is the iterated soft-drop
+multiplicity n_SD (Frye, Larkoski, Thaler, Zhou,
+[arXiv:1704.06266](https://arxiv.org/abs/1704.06266)): recluster the
+constituents with Cambridge/Aachen in opening angle, walk the hardest branch,
+and count branchings passing z > z_cut (θ/R₀)^β with θ > θ_cut.  Here
+z_cut = 0.1, β = 0, θ_cut = 0.1 rad, R₀ = 1 rad, in the e⁺e⁻ (energy, angle)
+form so that the same definition applies in any frame.
+
+### 3.1 The safety test
+
+Taking real current hemispheres and deforming them
+(`irc_safety_test.py`, `figures/irc_safety.pdf`):
+
+| deformation | ⟨n₉₀⟩ | ⟨n_SD⟩ |
+|---|---|---|
+| unmodified | 2.843 | 1.738 |
+| every constituent split in two at δ = 0.1 rad | 5.686 | 2.271 |
+| … at δ = 0.03 | 5.686 | 1.738 |
+| … at δ = 0.001 | 5.686 | 1.738 |
+| three particles added at ε = 10⁻² | 3.074 | 1.752 |
+| … at ε = 10⁻⁴ | 2.845 | 1.738 |
+
+A democratic collinear split **doubles** n₉₀ and it stays doubled however small
+the angle: n₉₀ is collinear unsafe, and the violation is order unity, not a
+correction.  n_SD returns to its unmodified value once the splitting falls
+below θ_cut.  Both are infrared safe.
+
+### 3.2 What n_SD does to the frame picture
+
+Repeating the beam-energy ladder with n_SD gives the striking result in the
+summary table, and it cuts both ways.
+
+*Where the observable is built in the colour frame, the two agree exactly:*
+−0.007 against −0.008 for the hemisphere, +0.016 against +0.015 for the γ*p
+jet.  That is as it must be — at fixed (*W*, *Q*) the colour-frame final state
+is identical, so any frame-defined observable is invariant.
+
+*Where the observable is built in the laboratory, n_SD is an order of magnitude
+worse:* −0.513 against −0.050 for the hemisphere, −0.430 against −0.001 for the
+γ*p jet, −1.48 against +0.038 for the lab cone.  In the longest-lever cell
+(*W* = 10–15, *Q* = 5–7.5 GeV) the lab-computed n_SD falls 1.85 → 1.02 → 0.10
+across the three configurations, while the frame-computed value sits at
+2.12 → 2.12 → 2.13, constant to half a percent (`beam_energy_sd.pdf`).
+
+The reason is structural.  n₉₀ is built only from momentum ordering and has no
+angular scale, so a longitudinal boost disturbs it only mildly.  n_SD has an
+explicit angular scale, and a boost rescales angles: at high beam energy the
+hemisphere is collimated below θ_cut and the branchings simply stop being
+counted.  **IRC safety and frame robustness are different axes**, and an
+observable can be excellent on one and poor on the other.
+
+### 3.3 A trap in the inclusive plot
+
+Inclusively at 10 × 100 GeV, ⟨n_SD⟩ of the hemisphere against |p|_lab reads
+0.82, 1.06, 1.32, 1.50, 1.53, 1.34, 1.13, 0.82 across bins from 1.3 to 32 GeV.
+It rises and then falls: the *Q* growth that adds branchings is cancelled at
+high momentum by the collimation that pushes them below θ_cut.  A power-law fit
+returns +0.010, which would read as "perfectly frame independent" and is
+meaningless — the curve is not a power law, and the controlled test shows this
+is the *most* lab-sensitive of all the definitions tried.  A flat inclusive
+curve is not evidence of frame independence.
+
+### 3.4 Which to use
+
+For a measurement, n_SD computed in the colour rest frame is the best of both:
+IRC safe and frame independent to under two percent.  n₉₀ in the colour frame
+is equally frame independent and simpler to construct, at the cost of collinear
+unsafety, which matters for comparison to fixed-order or resummed calculations
+but not for a Monte Carlo comparison at hadron level.  n_SD computed in the
+laboratory should be avoided in this context.  Its mean is also small at EIC
+energies — 1.14 for the hemisphere at 10 × 100 — so its statistical reach is
+weaker than n₉₀'s.
+
+---
+
 ## 4. Method and framework
 
 Pipeline: `generate_events.py` (Pythia 8, particle-level, stores q, k′, the beam
@@ -236,8 +325,13 @@ effect.  All items are fixed on this branch.
 * *Q*² > 1 GeV² admits jets from boson–gluon fusion and QCD Compton. The colour
   rest frame is still the γ*p frame, but the jet is not the Born struck quark;
   the stored parton match isolates the Born-like sample.
-* Only n₉₀ is studied here. The same ladder should be repeated for charged
-  multiplicity and for a jet-shape observable before claiming generality.
+* Two counting observables are studied here. A continuous jet shape (thrust,
+  angularities, energy–energy correlators) should be added before claiming
+  generality, and the n_SD working point should be scanned: θ_cut and z_cut set
+  how strongly the lab-frame version reacts to the boost.
+* n_SD at EIC energies is small, mean 1.14 for the hemisphere at 10 × 100,
+  because the current system typically holds only three to five particles. The
+  ladder is limited by that, not by sample size.
 
 ---
 
