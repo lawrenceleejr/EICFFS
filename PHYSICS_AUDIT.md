@@ -235,19 +235,24 @@ summary table, and it cuts both ways.
 jet.  That is as it must be — at fixed (*W*, *Q*) the colour-frame final state
 is identical, so any frame-defined observable is invariant.
 
-*Where the observable is built in the laboratory, n_SD is an order of magnitude
-worse:* −0.513 against −0.050 for the hemisphere, −0.430 against −0.001 for the
-γ*p jet, −1.48 against +0.038 for the lab cone.  In the longest-lever cell
+*Where the observable is built in the laboratory with an absolute opening-angle
+cut, n_SD is an order of magnitude worse:* −0.513 against −0.050 for the
+hemisphere, −0.430 against −0.001 for the γ*p jet, −1.48 against +0.038 for the
+lab cone.  This is specific to the e⁺e⁻ form of the condition; Sec. 3.5 shows
+the standard pp form is flat in the lab.  In the longest-lever cell
 (*W* = 10–15, *Q* = 5–7.5 GeV) the lab-computed n_SD falls 1.85 → 1.02 → 0.10
 across the three configurations, while the frame-computed value sits at
 2.12 → 2.12 → 2.13, constant to half a percent (`beam_energy_sd.pdf`).
 
 The reason is structural.  n₉₀ is built only from momentum ordering and has no
-angular scale, so a longitudinal boost disturbs it only mildly.  n_SD has an
-explicit angular scale, and a boost rescales angles: at high beam energy the
-hemisphere is collimated below θ_cut and the branchings simply stop being
-counted.  **IRC safety and frame robustness are different axes**, and an
-observable can be excellent on one and poor on the other.
+angular scale, so a longitudinal boost disturbs it only mildly.  An absolute
+opening-angle cut does have a scale, and a boost rescales angles: at high beam
+energy the hemisphere is collimated below θ_cut and the branchings stop being
+counted.  The fix is the one hadron colliders already adopted — measure the
+angle as a rapidity–azimuth distance, which is invariant under boosts along the
+axis (Sec. 3.5).  **Frame robustness is a property of the variables, not of the
+grooming**, and the lesson is about how a cut is written rather than about
+soft-drop multiplicity itself.
 
 ### 3.3 A trap in the inclusive plot
 
@@ -320,8 +325,21 @@ fixes it with no boosting at all (`sd_frame_test.py`,
 | prescription | exponent | ⟨n_SD⟩ |
 |---|---|---|
 | e⁺e⁻ variables (E, θ) in the laboratory | −0.474 | 1.37 |
+| **pp variables (p_T, ΔR) about the beam axis, in the lab** | **−0.016** | 1.48 |
 | **pp variables (p_T, ΔR) about the P + q axis, in the lab** | **−0.009** | 1.49 |
 | e⁺e⁻ variables in the object's own rest frame | −0.011 | 1.67 |
+
+The important row is the second.  **Written the standard way, soft-drop
+multiplicity is frame independent in the laboratory with no modification at
+all.**  The literal pp prescription — p_T fractions and a rapidity–azimuth
+distance about the beam — already gives −0.016, because at EIC kinematics the
+γ*p system's momentum is dominated by the proton, so the boost axis is close to
+the beam.  Using the exact P + q axis improves it slightly, to −0.009, and is
+the principled choice, but the difference is small.
+
+Every large soft-drop number reported in this note therefore belongs to the
+e⁺e⁻ form with an absolute opening-angle cut, which is what the implementation
+here used.  That form is the outlier, not the observable.
 
 **Is the object rest frame well defined?**  Mathematically yes whenever the
 object has m² > 0 and at least two constituents, and it preserves IRC safety: a
@@ -346,10 +364,12 @@ number here was regenerated with the radius above π.)*
 
 ### 3.6 Which to use
 
-For a measurement, n_SD computed in the object's own rest frame is the best of
-both: IRC safe, and frame independent to under two percent across beam energies
-and to 0.1 % against *W* at fixed *Q*.  n_SD in the γ*p frame is not enough, and
-in the laboratory it should be avoided.  n₉₀ in the colour frame is equally
+For a measurement, use n_SD in its standard hadron-collider form — p_T
+fractions and a rapidity–azimuth distance, ideally about the *P + q* axis.  It
+is IRC safe and frame independent in the laboratory with no boosting, and it
+stays comparable with pp and e⁺e⁻ results.  The object's own rest frame works
+equally well but is non-standard and degenerate for two-body objects.  Only the
+e⁺e⁻ opening-angle form applied in the laboratory should be avoided.  n₉₀ in the colour frame is equally
 frame independent and simpler to construct, at the cost of collinear unsafety,
 which matters for comparison to fixed-order or resummed calculations but not for
 a Monte Carlo comparison at hadron level.  Whichever variant is chosen, n_SD is

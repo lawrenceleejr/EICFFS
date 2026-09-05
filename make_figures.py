@@ -1020,7 +1020,7 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     ax.annotate(r"$n_{90}$", (-0.60, len(rungs) - 0.42), xytext=(6, 0),
                 textcoords="offset points", fontsize=7.5, color=INK, va="center")
     ax.plot([-0.60], [len(rungs) - 0.72], marker="s", ms=4.0, color=SD, mec="white", mew=0.5)
-    ax.annotate(r"$n_{\rm SD}$", (-0.60, len(rungs) - 0.72), xytext=(6, 0),
+    ax.annotate(r"$n_{\rm SD}$ ($e^+e^-$ variables)", (-0.60, len(rungs) - 0.72), xytext=(6, 0),
                 textcoords="offset points", fontsize=7.5, color=SD, va="center")
     ax.annotate("frame independent", (0.0, len(rungs) - 0.45), xytext=(0, 0),
                 textcoords="offset points", ha="center", fontsize=7, color=MUTED)
@@ -1029,8 +1029,10 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
                 "$(W, Q)$ cells across the 5$\\times$41, 10$\\times$100 and 18$\\times$275 GeV "
                 "configurations, which move the same colour-frame system through lab momenta differing "
                 "by up to a factor of seven.  Computing either observable from colour-frame momenta "
-                "leaves no measurable dependence on the lab.  Computing $n_{\\rm SD}$ in the lab is far "
-                "worse than $n_{90}$: it carries an angular cut, and a boost rescales angles.")
+                "leaves no measurable dependence on the lab.  The soft-drop squares use the $e^+e^-$ "
+                "form, with an absolute opening-angle cut, which a boost rescales; written the standard "
+                "way for hadron collisions it is flat in the laboratory too, $-0.016$ "
+                "(see sd_frame_choice).")
     save(fig, outdir, "frame_ladder")
     out = {f"n90 | {name.split(chr(10))[0]}": float(np.median(sl)) for name, sl, _ in rungs}
     out.update({f"nSD | {n.split(chr(10))[0]}": float(np.median(v)) for n, v in rungs_sd if len(v)})
@@ -1070,8 +1072,11 @@ def fig_ladder_vs_radius(beam_paths, outdir):
                 textcoords="offset points", ha="right", fontsize=7, color="#2f6b4f")
     ax.annotate(r"$n_{90}$", (xs[-1], y90[-1]), xytext=(7, 0), textcoords="offset points",
                 fontsize=8, color=INK, va="center")
-    ax.annotate(r"$n_{\rm SD}$ in the lab", (xs[-1], ysd[-1]), xytext=(7, 0),
-                textcoords="offset points", fontsize=8, color=SD, va="center")
+    ax.annotate("$n_{\\rm SD}$, $e^+e^-$ variables\nin the lab", (xs[-1], ysd[-1]), xytext=(7, 0),
+                textcoords="offset points", fontsize=7.5, color=SD, va="center")
+    ax.axhline(-0.016, color=SD, lw=0.9, ls=(0, (2, 2)), zorder=0)
+    ax.annotate("$n_{\\rm SD}$, standard $pp$ variables", (2.42, -0.016), xytext=(0, 5),
+                textcoords="offset points", ha="right", fontsize=7, color=SD)
     ax.annotate("radius EIC studies use", (1.0, 0.085), ha="center", fontsize=7, color=MUTED)
     ax.set_xlabel(r"anti-$k_T$ radius of the lab jet, $R$")
     ax.set_ylabel("frame dependence across beam energies")
@@ -1084,8 +1089,9 @@ def fig_ladder_vs_radius(beam_paths, outdir):
                 "$(W, Q)$ cells across the three beam configurations, against the radius of the "
                 "laboratory cone.  At the radius the EIC community actually uses, a plain lab cone is "
                 "already frame independent for $n_{90}$; the $R$ = 0.4 inherited from the reference "
-                "paper is the worst case.  An angular-cut observable computed in the lab stays badly "
-                "dependent at every radius.")
+                "paper is the worst case.  The soft-drop curve is the $e^+e^-$ form, with an absolute "
+                "opening-angle cut, and no radius rescues it.  Written the standard way, with $p_T$ "
+                "fractions and a rapidity-azimuth distance, it is flat too (dashed).")
     save(fig, outdir, "ladder_vs_radius")
     return dict(zip(xs, y90))
 

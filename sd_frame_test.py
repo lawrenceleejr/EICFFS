@@ -107,6 +107,7 @@ def load_beam(pattern):
     cur = np.einsum("ni,ni->n", CB[:, :3], qh[evi]) > 0
     Ccm = np.einsum("nij,nj->ni", L[evi], C)
     boost_axis = (P + q)[:, :3]
+    beam_axis = np.tile(np.array([0.0, 0.0, 1.0]), (len(W), 1))
 
     e = evi[cur]
     o = np.argsort(e, kind="stable")
@@ -116,10 +117,11 @@ def load_beam(pattern):
     st = np.concatenate([[0], np.cumsum(cnt)[:-1]])
     H = np.zeros((len(W), 4))
     np.add.at(H, evi[cur], C[cur])
-    res = {k: np.zeros(len(W)) for k in ("lab_ee", "axis_pp", "rest_ee")}
+    res = {k: np.zeros(len(W)) for k in ("lab_ee", "beam_pp", "axis_pp", "rest_ee")}
     for i in np.where(cnt >= 2)[0]:
         vl, vc = Vlab[st[i]:st[i] + cnt[i]], Vcm[st[i]:st[i] + cnt[i]]
         res["lab_ee"][i] = isd_multiplicity(vl)
+        res["beam_pp"][i] = isd_pp(vl, beam_axis[i])
         res["axis_pp"][i] = isd_pp(vl, boost_axis[i])
         Hi = vc.sum(axis=0)
         if Hi[3]**2 - (Hi[:3]**2).sum() > 1e-9:
@@ -161,6 +163,7 @@ def main():
 
     variants = [
         (r"$e^+e^-$ variables ($E$, $\theta$)" "\n" "in the laboratory", "lab_ee", BAD),
+        (r"$pp$ variables ($p_T$, $\Delta R$)" "\n" r"about the beam axis, in the lab", "beam_pp", INK),
         (r"$pp$ variables ($p_T$, $\Delta R$)" "\n" r"about the $P+q$ axis, in the lab", "axis_pp", GOOD),
         (r"$e^+e^-$ variables ($E$, $\theta$)" "\n" "in the object's rest frame", "rest_ee", GOOD),
     ]
@@ -173,7 +176,7 @@ def main():
         print(f"{name.replace(chr(10), ' '):<46}{np.median(sl):>+9.3f}"
               f"{np.max(np.abs(sl)):>8.3f}{mean:>7.2f}")
 
-    fig, ax = plt.subplots(figsize=(5.0, 2.9))
+    fig, ax = plt.subplots(figsize=(5.0, 3.4))
     ax.axvline(0.0, color=FAINT, lw=0.9, zorder=0)
     ys = np.arange(len(rows))[::-1]
     for y, (name, sl, mean, col) in zip(ys, rows):
