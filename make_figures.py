@@ -216,6 +216,25 @@ def q_key(ax, y=1.03):
         x += 0.30 if iq == 0 else 0.17
 
 
+def clearest_row(rows):
+    """
+    The cell line with the most empty space next to it, and which side that is on:
+    returns (points, dy) for beam_marks.  Space is measured between line means.
+    """
+    means = np.array([np.mean([p[1] for p in r[3]]) for r in rows])
+    best, best_gap = None, -1.0
+    for i, m in enumerate(means):
+        above = means[means > m]
+        below = means[means < m]
+        gap_up = (above.min() - m) if len(above) else 0.0     # the top row abuts the key
+        gap_dn = (m - below.max()) if len(below) else 0.0     # the bottom row abuts the axis
+        if gap_dn >= gap_up and gap_dn > best_gap:
+            best, best_gap = (rows[i][3], -12), gap_dn
+        elif gap_up > gap_dn and gap_up > best_gap:
+            best, best_gap = (rows[i][3], 9), gap_up
+    return best
+
+
 def beam_marks(ax, pts, dy=-12):
     """Name the three beam configurations under the points of one cell."""
     for x, y, _, lab in pts:
@@ -956,8 +975,9 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
             d = beams_c[[l for l, _ in beam_paths].index(inclusive_path)][1]
             incl_c = inclusive_curve(ax, d["plab"], d["n90"],
                                      rf"all $\gamma^*p$-frame jets, {inclusive_path}", P_HEMI, labels)
-        if rows:   # the lowest line sits on the axis, so name the beams above the highest one
-            beam_marks(ax, max(rows, key=lambda r: np.mean([p[1] for p in r[3]]))[3], dy=9)
+        if rows:   # the lowest line sits on the axis, so name the beams where there is room
+            pts, dy = clearest_row(rows)
+            beam_marks(ax, pts, dy=dy)
         ax.set_xscale("log")
         ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
         ax.minorticks_off()
