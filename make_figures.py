@@ -172,12 +172,54 @@ class EndLabels:
 
 def caption(ax, text, fontsize=7.5):
     """Small explanatory note under the axes — the figure explains itself."""
-    ax.text(0.0, -0.22, text, transform=ax.transAxes, fontsize=fontsize,
-            color=MUTED, va="top", ha="left", wrap=True)
+    t = ax.text(0.0, -0.22, text, transform=ax.transAxes, fontsize=fontsize,
+                color=MUTED, va="top", ha="left", wrap=True)
+    t._is_caption = True
+
+
+def check_labels(fig, name, frac=0.30):
+    """
+    Warn about overlapping text in a finished figure.
+
+    Compares the rendered bounding boxes of every Text artist that carries ink
+    and reports any pair overlapping by more than ``frac`` of the smaller box.
+    Caption text is excluded: it is a paragraph below the axes and wraps.
+    """
+    fig.canvas.draw()
+    r = fig.canvas.get_renderer()
+    items = []
+    for ax in fig.axes:
+        texts = (ax.texts + [ax.xaxis.label, ax.yaxis.label, ax.title]
+                 + ax.get_xticklabels() + ax.get_yticklabels())
+        for t in texts:
+            if not t.get_visible() or not t.get_text().strip():
+                continue
+            if getattr(t, "_is_caption", False):
+                continue
+            try:
+                bb = t.get_window_extent(renderer=r)
+            except Exception:
+                continue
+            if bb.width > 0 and bb.height > 0:
+                items.append((t.get_text().strip()[:28], bb))
+    hits = []
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            (ta, ba), (tb, bbx) = items[i], items[j]
+            ox = min(ba.x1, bbx.x1) - max(ba.x0, bbx.x0)
+            oy = min(ba.y1, bbx.y1) - max(ba.y0, bbx.y0)
+            if ox > 0 and oy > 0:
+                small = min(ba.width * ba.height, bbx.width * bbx.height)
+                if ox * oy > frac * small:
+                    hits.append((ta, tb, ox * oy / small))
+    for a, b, f in hits:
+        print(f"    [labels] {name}: {a!r} overlaps {b!r} ({f:.0%})")
+    return hits
 
 
 def save(fig, outdir, name):
     os.makedirs(outdir, exist_ok=True)
+    check_labels(fig, name)
     pdf = os.path.join(outdir, name + ".pdf")
     fig.savefig(pdf, format="pdf", bbox_inches="tight")
     fig.savefig(os.path.join(outdir, name + ".png"), dpi=220, bbox_inches="tight")
@@ -894,7 +936,7 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     One panel: how much lab-frame dependence each choice introduces, from the
     inclusive measurement down to the fully frame-defined observable.
     """
-    hemi = [(l, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90", "n90_cm", "n_sd", "n_sd_cm"],
+    hemi = [(l, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90", "n90_cm", "n_sd", "n_sd_cm", "n_sd_rest"],
                            lambda d: np.isfinite(d["n90"]) & np.isfinite(d["n90_cm"]) & (d["plab"] > 1.0)))
             for l, p in beam_paths]
     labj = [(l, _load_tree(p, "jets_R0p4", ["W", "Q2", "plab", "n90", "n_sd", "lead", "current"],
@@ -903,10 +945,11 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     cmj = []
     for l, p in beam_paths:
         d = uproot.open(p)["cmjets"].arrays(
-            ["e_cm", "Q2", "p_lab", "n90_labmom", "n90_cm", "n_sd_lab", "n_sd_cm"], library="np")
+            ["e_cm", "Q2", "p_lab", "n90_labmom", "n90_cm", "n_sd_lab", "n_sd_cm", "n_sd_rest"],
+            library="np")
         d = {"e_hcm": d["e_cm"], "Q2": d["Q2"], "plab": d["p_lab"],
              "n90": d["n90_labmom"], "n90_cm": d["n90_cm"],
-             "n_sd": d["n_sd_lab"], "n_sd_cm": d["n_sd_cm"]}
+             "n_sd": d["n_sd_lab"], "n_sd_cm": d["n_sd_cm"], "n_sd_rest": d["n_sd_rest"]}
         m = np.isfinite(d["n90"]) & np.isfinite(d["n90_cm"])
         cmj.append((l, {k: v[m] for k, v in d.items()}))
 
@@ -918,6 +961,7 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
         ("$\\gamma^*p$-frame jet,\nfrom lab momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n_sd")),
         ("whole current hemisphere,\nfrom frame momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n_sd_cm")),
         ("$\\gamma^*p$-frame jet,\nfrom frame momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n_sd_cm")),
+        ("either object,\nin its own rest frame", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n_sd_rest")),
     ]
     sd_by_name = dict(rungs_sd)
     rungs = [
@@ -927,12 +971,23 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
         ("$\\gamma^*p$-frame jet,\nfrom lab momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n90"), INK),
         ("whole current hemisphere,\nfrom frame momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n90_cm"), "#2f6b4f"),
         ("$\\gamma^*p$-frame jet,\nfrom frame momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n90_cm"), "#2f6b4f"),
+        ("either object,\nin its own rest frame", [], "#2f6b4f"),
     ]
-    fig, ax = plt.subplots(figsize=(5.4, 3.9))
+    fig, ax = plt.subplots(figsize=(5.4, 4.5))
     ax.axvline(0.0, color=FAINT, lw=0.9, zorder=0)
     ys = np.arange(len(rungs))[::-1]
     for y, (name, sl, col) in zip(ys, rungs):
         sl = np.asarray(sl, float)
+        if len(sl) == 0:
+            sd0 = sd_by_name.get(name)
+            if sd0 is not None and len(sd0):
+                sd0 = np.asarray(sd0, float)
+                m0 = np.median(sd0)
+                ax.plot([sd0.min(), sd0.max()], [y, y], color=SD, lw=1.0, alpha=0.35)
+                ax.plot([m0], [y], marker="s", ms=4.5, color=SD, mec="white", mew=0.6, zorder=3)
+                ax.annotate(f"{m0:+.3f}", (m0, y), xytext=(7, 0), textcoords="offset points",
+                            ha="left", va="center", fontsize=7, color=SD)
+            continue
         med = np.median(sl)
         if len(sl) > 1:
             ax.plot([sl.min(), sl.max()], [y + 0.13, y + 0.13], color=col, lw=1.0, alpha=0.35,
@@ -949,8 +1004,9 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
             ax.plot([max(msd, -0.60)], [y - 0.17], marker="s", ms=4.5, color=SD, mec="white",
                     mew=0.6, zorder=3)
             txt = f"{msd:+.3f}" + ("  (off scale)" if msd < -0.62 else "")
-            ax.annotate(txt, (max(msd, -0.60), y - 0.17), xytext=(0, -13),
-                        textcoords="offset points", ha="center", fontsize=7, color=SD)
+            ax.annotate(txt, (max(msd, -0.60), y - 0.17), xytext=(7, 0),
+                        textcoords="offset points", ha="left", va="center",
+                        fontsize=7, color=SD)
     ax.set_yticks(ys)
     ax.set_yticklabels([r[0] for r in rungs], fontsize=7.5)
     ax.tick_params(axis="y", length=0)
@@ -1323,15 +1379,19 @@ def fig_boost_map(jets, outdir):
 
     y_levels = [1.5, 2, 2.5, 3, 3.5, 4]
     cs = ax.contour(X, Q2g, yh, levels=y_levels, colors=INK, linewidths=0.7)
-    pos = [p for p in ([along_row(yh, 1.5, 1.6), along_row(yh, 2.0, 1.6)]
-                       + [along_col(yh, lv, 0.55) for lv in (2.5, 3, 3.5, 4)]) if p is not None]
-    ax.clabel(cs, fmt=lambda v: rf"$y_{{\rm cm}}$ = {v:g}", fontsize=7, inline=True,
-              manual=pos)
+    label_y = [1.5, 2.5, 3.5]
+    pos = [p for p in ([along_row(yh, 1.5, 1.6)]
+                       + [along_col(yh, lv, 0.55) for lv in (2.5, 3.5)]) if p is not None]
+    ax.clabel(cs, levels=label_y, fmt=lambda v: rf"$y_{{\rm cm}}$ = {v:g}", fontsize=7,
+              inline=True, manual=pos)
     W_levels = [10, 15, 22, 32, 45]
     Wl = ax.contour(X, Q2g, np.sqrt(W2), levels=W_levels, colors=W_COLORS,
                     linewidths=0.9, linestyles="--")
-    pos = [p for p in (along_row(np.sqrt(W2), lv, 400.0) for lv in W_levels) if p is not None]
-    ax.clabel(Wl, fmt=lambda v: rf"$W$ = {v:g}", fontsize=7, inline=True, manual=pos)
+    label_W = [10, 22, 45]
+    pos = [p for p in (along_row(np.sqrt(W2), lv, q2)
+                       for lv, q2 in zip(label_W, (25.0, 90.0, 300.0))) if p is not None]
+    ax.clabel(Wl, levels=label_W, fmt=lambda v: rf"$W$ = {v:g}", fontsize=7, inline=True,
+              manual=pos)
     ax.contour(X, Q2g, Y, levels=[0.95], colors=[MUTED], linewidths=0.6)
     ax.text(3e-4, 1.6e2, r"$y$ = 0.95", fontsize=7, color=MUTED, rotation=38)
     ax.scatter(jets["x"], jets["Q2"], s=0.5, color=ACCENT, alpha=0.08, lw=0, rasterized=True)
