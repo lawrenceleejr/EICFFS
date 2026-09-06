@@ -34,6 +34,7 @@ import uproot
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from matplotlib import colors as mcolors
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -55,6 +56,7 @@ MIN_ENTRIES = 40
 # Single-hue sequential ramp for the ordered variable W (light = low W)
 W_COLORS = ["#9ecae1", "#6baed6", "#3182bd", "#08519c", "#08306b"]
 # Sequential ramp for the ordered variable E_cm (six steps, light = low energy)
+W3_COLORS = ["#6baed6", "#3182bd", "#08306b"]   # the three W cells of the beam test
 E_COLORS = ["#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"]
 E_SLICES = [(1.5, 2.5), (2.5, 4), (4, 6), (6, 9), (9, 14), (14, 22)]
 PCM_SLICES = [(2, 3.3), (3.3, 5), (5, 7.5), (7.5, 11), (11, 16), (16, 24)]
@@ -214,6 +216,18 @@ def q_key(ax, y=1.03):
         ax.annotate(txt, (x, y), xytext=(6, 0), textcoords="offset points", xycoords="axes fraction",
                     va="center", ha="left", fontsize=7, color=MUTED)
         x += 0.30 if iq == 0 else 0.17
+
+
+def w_key(ax, cells, colors, y=1.03, symbol="W"):
+    """Explain the colours that encode the W (or E_cm) bin, above the axes."""
+    x = 0.0
+    for i, (lo, hi) in enumerate(cells):
+        ax.plot([x - 0.012, x + 0.012], [y, y], color=colors[i], lw=1.6,
+                transform=ax.transAxes, clip_on=False, solid_capstyle="butt")
+        txt = (rf"${symbol}$ = {lo:g}$-${hi:g} GeV" if i == 0 else rf"{lo:g}$-${hi:g}")
+        ax.annotate(txt, (x + 0.012, y), xytext=(4, 0), textcoords="offset points",
+                    xycoords="axes fraction", va="center", ha="left", fontsize=7, color=MUTED)
+        x += (0.32 if i == 0 else 0.15)
 
 
 def clearest_row(rows):
@@ -920,15 +934,42 @@ def _beam_cells(beams, xkey="plab", ecm_cells=False, obs="n90"):
     return rows
 
 
-def _draw_beam_rows(ax, rows, colors):
+def _blend(c1, c2):
+    a, b = np.array(mcolors.to_rgb(c1)), np.array(mcolors.to_rgb(c2))
+    return tuple(0.5 * (a + b))
+
+
+def _draw_beam_rows(ax, rows, colors, ribbon=False):
+    """
+    One errorbar line per (W or E_cm, Q) cell.  With ``ribbon`` the lines of one
+    Q bin are joined into a surface: for each beam-to-beam step, the quadrilateral
+    between neighbouring W lines is filled with their blended colour, so each Q
+    bin reads as one sheet spanned by beam energy (along x) and W (across).
+    """
     labels = EndLabels(ax, min_sep_pt=9.0, fontsize=7)
     allx, ally, flat = [], [], []
+    if ribbon:
+        by_q = {}
+        for name, iw, iq, pts in rows:
+            by_q.setdefault(iq, {})[iw] = pts
+        for iq, lines in by_q.items():
+            iws = sorted(lines)
+            for a, b in zip(iws[:-1], iws[1:]):
+                pa, pb = lines[a], lines[b]
+                if len(pa) != len(pb):
+                    continue
+                for i in range(len(pa) - 1):
+                    poly = [(pa[i][0], pa[i][1]), (pa[i + 1][0], pa[i + 1][1]),
+                            (pb[i + 1][0], pb[i + 1][1]), (pb[i][0], pb[i][1])]
+                    ax.add_patch(mpatches.Polygon(poly, closed=True, facecolor=_blend(colors[a], colors[b]),
+                                                  edgecolor="none", alpha=0.22, zorder=1))
     for name, iw, iq, pts in rows:
         xs = np.array([p[0] for p in pts]); ys = np.array([p[1] for p in pts]); es = np.array([p[2] for p in pts])
         col = colors[iw]
         ax.errorbar(xs, ys, yerr=es, color=col, lw=1.1, elinewidth=0.6, capsize=0,
-                    marker=Q_MARKERS[iq], ms=3.5, mec="white", mew=0.4)
-        labels.add(xs, ys, name, col)
+                    marker=Q_MARKERS[iq], ms=3.5, mec="white", mew=0.4, zorder=3)
+        if not ribbon:
+            labels.add(xs, ys, name, col)
         allx.append(xs); ally.append(ys)
         flat.append(np.polyfit(np.log(xs), np.log(ys), 1)[0])    # d ln<n90> / d ln p_lab per cell
     return labels, np.concatenate(allx), np.concatenate(ally), flat
@@ -955,7 +996,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         ax.plot(xc[ok], mu[ok], color=FAINT, lw=2.4, zorder=0)
         ax.annotate(f"all hemispheres, {inclusive_path}", (xc[ok][-1], mu[ok][-1]),
                     xytext=(6, 0), textcoords="offset points", fontsize=7, color=MUTED, va="center")
-    labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
+    labels, allx, ally, flat = _draw_beam_rows(ax, rows, W3_COLORS, ribbon=True)
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
@@ -963,8 +1004,8 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
     ax.set_xlim(0.9, 200)
     range_frame(ax, allx, ally)
-    labels.draw(column=True)
-    q_key(ax)
+    q_key(ax, y=1.09)
+    w_key(ax, BEAM_CELLS_W, W3_COLORS, y=1.03)
     beam_marks_auto(ax, rows)
     med = float(np.median(flat))
     incl_slope = np.polyfit(np.log(xc[ok]), np.log(mu[ok]), 1)[0] if inclusive_path else np.nan
@@ -973,7 +1014,8 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
                 "each line the current hemisphere's lab momentum moves by up to a factor of ten and "
                 f"$\\langle n_{{90}}\\rangle$ does not follow: median slope d ln$\\langle n_{{90}}\\rangle$/d ln$p$ = "
                 f"{med:+.2f} per cell, against {incl_slope:+.2f} for the inclusive curve (grey).  "
-                "Marker shape encodes the $Q$ bin.")
+                "Marker shape encodes the $Q$ bin, colour the $W$ bin; each $Q$ bin is drawn as one "
+                "sheet spanned by beam energy and $W$.")
     save(fig, outdir, "beam_energy_hemisphere")
     results["hemisphere"] = flat
 
@@ -987,7 +1029,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     if inclusive_path:
         d = beams_j[[l for l, _ in beam_paths].index(inclusive_path)][1]
         incl_j = inclusive_curve(ax, d["plab"], d["n90"], f"all lab jets, {inclusive_path}", P_HEMI)
-    labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
+    labels, allx, ally, flat = _draw_beam_rows(ax, rows, W3_COLORS, ribbon=True)
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
@@ -995,8 +1037,8 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
     ax.set_xlim(0.9, 200)
     range_frame(ax, allx, ally)
-    labels.draw(column=True)
-    q_key(ax)
+    q_key(ax, y=1.09)
+    w_key(ax, BEAM_CELLS_W, W3_COLORS, y=1.03)
     beam_marks_auto(ax, rows)
     med_j = float(np.median(flat))
     caption(ax, "The same cells and beam configurations for the leading anti-$k_T$ jet clustered in the "
@@ -1018,7 +1060,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         if inclusive_path:
             d = beams_s[[l for l, _ in beam_paths].index(inclusive_path)][1]
             incl_s = inclusive_curve(ax, d["plab"], d["n_sd_pp"], f"all lab jets, {inclusive_path}", P_HEMI)
-        labels, allx, ally, flat = _draw_beam_rows(ax, rows, ["#6baed6", "#3182bd", "#08306b"])
+        labels, allx, ally, flat = _draw_beam_rows(ax, rows, W3_COLORS, ribbon=True)
         ax.set_xscale("log")
         ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
         ax.minorticks_off()
@@ -1026,8 +1068,8 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         ax.set_ylabel(r"$\langle n_{\rm SD}\rangle$, standard form")
         ax.set_xlim(0.9, 200)
         range_frame(ax, allx, ally)
-        labels.draw(column=True)
-        q_key(ax)
+        q_key(ax, y=1.09)
+        w_key(ax, BEAM_CELLS_W, W3_COLORS, y=1.03)
         beam_marks_auto(ax, rows)
         med_s = float(np.median(flat))
         caption(ax, "The same leading $R$ = 1.2 lab jets, now with the IRC-safe iterated soft-drop "
@@ -1052,6 +1094,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     rows = _beam_cells(beams_c, ecm_cells=True)
     if rows:
         fig, ax = plt.subplots(figsize=(4.8, 3.8))
+        # no ribbons here: the E_cm cells are different objects, not one system under boosts
         labels, allx, ally, flat = _draw_beam_rows(ax, rows, E_COLORS)
         incl_c = np.nan
         if inclusive_path:
@@ -1065,8 +1108,8 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         ax.set_ylabel(r"$\langle n_{90}\rangle$")
         ax.set_xlim(0.9, 200)
         range_frame(ax, allx, ally)
-        labels.draw(column=True)
-        q_key(ax)
+        q_key(ax, y=1.09)
+        w_key(ax, E_SLICES, E_COLORS, y=1.03, symbol="E_{\\rm cm}")
         beam_marks_auto(ax, rows)
         med_c = float(np.median(flat))
         caption(ax, "Jets clustered in the colour rest frame with $n_{90}$ computed from their lab "
