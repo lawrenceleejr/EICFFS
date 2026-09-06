@@ -1100,7 +1100,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         if inclusive_path:
             d = beams_c[[l for l, _ in beam_paths].index(inclusive_path)][1]
             incl_c = inclusive_curve(ax, d["plab"], d["n90"],
-                                     rf"all $\gamma^*p$-frame jets, {inclusive_path}", P_HEMI, labels)
+                                     rf"all $\gamma^*p$-frame jets, {inclusive_path}", P_HEMI)
         ax.set_xscale("log")
         ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
         ax.minorticks_off()
