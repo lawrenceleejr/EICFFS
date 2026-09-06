@@ -543,6 +543,32 @@ effect.  All items are fixed on this branch.
 
 ## 5. Caveats
 
+* **Are *W* and *Q* measurable cell by cell?**  Yes, but not equally well in
+  every cell.  *Q*² and *y* come from the scattered electron alone
+  (*Q*² = 2*E*_e*E*'(1 + cos θ), *y* = 1 − (*E*'/2*E*_e)(1 − cos θ)), or from
+  the hadronic final state (Jacquet–Blondel), and *W*² = *M*² + *ys* − *Q*², so
+  *W* is a *y* measurement in disguise.  The electron method resolves *Q*² to a
+  few per cent everywhere but its *y* resolution degrades as 1/*y*; the
+  hadronic and Σ methods take over below *y* ≈ 0.05.  At fixed (*W*, *Q*) the
+  three beam configurations sit at very different *y* (medians over the cells
+  used here):
+
+  | *W* cell | 5 × 41 | 10 × 100 | 18 × 275 |
+  |---|---|---|---|
+  | 10–15 GeV | *y* = 0.19–0.23 | 0.039–0.048 | 0.008–0.010 |
+  | 15–22 GeV | 0.35–0.44 | 0.084–0.093 | 0.017–0.019 |
+  | 22–28 GeV | 0.63–0.77 | 0.16 | 0.031–0.033 |
+
+  The two ends of the lever arm are the hard ones.  At 18 × 275 the *W* = 10–15
+  cells lie at *y* < 0.01, below the *y* > 0.01 cut EIC studies normally apply,
+  and *W* there rests entirely on the hadronic method at the edge of its
+  resolution.  At 5 × 41 the *W* = 22–28 cells lie at *y* = 0.6–0.8, where the
+  scattered electron carries only 1–2 GeV and must be separated from
+  photoproduction background.  The middle of the table, *y* between about 0.02
+  and 0.5, is comfortable in every configuration; the *W* = 15–22 row is
+  measurable in all three beams with standard methods, and even the extreme
+  cells trade only lever arm, not the test itself.  *x* runs from 0.01 to 0.18
+  across the cells and is identical between beams by construction.
 * Pythia only.  arXiv:2308.10951 compared Pythia, Vincia and Herwig; a Herwig 7
   or Sherpa cross-check of the ladder is the obvious next step and is a
   generator swap in this framework.

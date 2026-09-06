@@ -206,28 +206,47 @@ def inclusive_curve(ax, x, y, text, edges, labels=None):
     return float(np.polyfit(np.log(xc[ok]), np.log(mu[ok]), 1)[0])
 
 
+def _key_row(ax, y, entries, gap_pt=14.0):
+    """
+    One row of key entries above the axes, each a symbol drawn by ``draw(x, y)``
+    (returning its width in axes fraction) followed by text; the next entry starts
+    a fixed gap after the rendered right edge of the previous text.
+    """
+    fig = ax.figure
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    inv = ax.transAxes.inverted()
+    x = 0.0
+    for draw, txt, color in entries:
+        w = draw(x, y)
+        t = ax.annotate(txt, (x + w, y), xytext=(4, 0), textcoords="offset points",
+                        xycoords="axes fraction", va="center", ha="left", fontsize=7, color=color)
+        bb = t.get_window_extent(rend)
+        x = inv.transform((bb.x1 + gap_pt * fig.dpi / 72.0, bb.y1))[0]
+
+
 def q_key(ax, y=1.03):
     """Explain the marker shapes that encode the Q bin, above the axes."""
-    x = 0.0
-    for iq, (qlo, qhi) in enumerate(BEAM_CELLS_Q):
-        ax.plot([x], [y], marker=Q_MARKERS[iq], ms=3.4, color=MUTED, mec="white", mew=0.4,
-                transform=ax.transAxes, clip_on=False)
-        txt = (rf"$Q$ = {qlo:g}$-${qhi:g} GeV" if iq == 0 else rf"{qlo:g}$-${qhi:g}")
-        ax.annotate(txt, (x, y), xytext=(6, 0), textcoords="offset points", xycoords="axes fraction",
-                    va="center", ha="left", fontsize=7, color=MUTED)
-        x += 0.30 if iq == 0 else 0.17
+    def marker(iq):
+        def draw(x, y):
+            ax.plot([x + 0.006], [y], marker=Q_MARKERS[iq], ms=3.4, color=MUTED, mec="white",
+                    mew=0.4, transform=ax.transAxes, clip_on=False)
+            return 0.012
+        return draw
+    _key_row(ax, y, [(marker(iq), rf"$Q$ = {qlo:g}$-${qhi:g} GeV" if iq == 0 else rf"{qlo:g}$-${qhi:g}", MUTED)
+                     for iq, (qlo, qhi) in enumerate(BEAM_CELLS_Q)])
 
 
 def w_key(ax, cells, colors, y=1.03, symbol="W"):
     """Explain the colours that encode the W (or E_cm) bin, above the axes."""
-    x = 0.0
-    for i, (lo, hi) in enumerate(cells):
-        ax.plot([x - 0.012, x + 0.012], [y, y], color=colors[i], lw=1.6,
-                transform=ax.transAxes, clip_on=False, solid_capstyle="butt")
-        txt = (rf"${symbol}$ = {lo:g}$-${hi:g} GeV" if i == 0 else rf"{lo:g}$-${hi:g}")
-        ax.annotate(txt, (x + 0.012, y), xytext=(4, 0), textcoords="offset points",
-                    xycoords="axes fraction", va="center", ha="left", fontsize=7, color=MUTED)
-        x += (0.32 if i == 0 else 0.15)
+    def swatch(i):
+        def draw(x, y):
+            ax.plot([x, x + 0.024], [y, y], color=colors[i], lw=1.6, transform=ax.transAxes,
+                    clip_on=False, solid_capstyle="butt")
+            return 0.024
+        return draw
+    _key_row(ax, y, [(swatch(i), rf"${symbol}$ = {lo:g}$-${hi:g} GeV" if i == 0 else rf"{lo:g}$-${hi:g}", MUTED)
+                     for i, (lo, hi) in enumerate(cells)])
 
 
 def clearest_row(rows):
@@ -1031,11 +1050,11 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         incl_j = inclusive_curve(ax, d["plab"], d["n90"], f"all lab jets, {inclusive_path}", P_HEMI)
     labels, allx, ally, flat = _draw_beam_rows(ax, rows, W3_COLORS, ribbon=True)
     ax.set_xscale("log")
-    ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
+    ax.set_xticks([2, 5, 10, 20, 50]); ax.set_xticklabels(["2", "5", "10", "20", "50"])
     ax.minorticks_off()
-    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the leading lab jet, $R$ = 1.2  [GeV]")
+    ax.set_xlabel(r"jet $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
-    ax.set_xlim(0.9, 200)
+    ax.set_xlim(1.9, 150)
     range_frame(ax, allx, ally)
     q_key(ax, y=1.09)
     w_key(ax, BEAM_CELLS_W, W3_COLORS, y=1.03)
@@ -1062,19 +1081,20 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
             incl_s = inclusive_curve(ax, d["plab"], d["n_sd_pp"], f"all lab jets, {inclusive_path}", P_HEMI)
         labels, allx, ally, flat = _draw_beam_rows(ax, rows, W3_COLORS, ribbon=True)
         ax.set_xscale("log")
-        ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
+        ax.set_xticks([2, 5, 10, 20, 50]); ax.set_xticklabels(["2", "5", "10", "20", "50"])
         ax.minorticks_off()
-        ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the leading lab jet, $R$ = 1.2  [GeV]")
-        ax.set_ylabel(r"$\langle n_{\rm SD}\rangle$, standard form")
-        ax.set_xlim(0.9, 200)
+        ax.set_xlabel(r"jet $|\vec p|_{\rm lab}$  [GeV]")
+        ax.set_ylabel(r"$\langle n_{\rm SD}\rangle$")
+        ax.set_xlim(1.9, 150)
         range_frame(ax, allx, ally)
+        ax.set_ylim(bottom=1.6)
         q_key(ax, y=1.09)
         w_key(ax, BEAM_CELLS_W, W3_COLORS, y=1.03)
         beam_marks_auto(ax, rows)
         med_s = float(np.median(flat))
-        caption(ax, "The same leading $R$ = 1.2 lab jets, now with the IRC-safe iterated soft-drop "
-                    "multiplicity in its standard hadron-collider form ($p_T$ fractions, rapidity-azimuth "
-                    "distance, $z_{\\rm cut}$ = 0.1, $\\Delta R_{\\rm cut}$ = 0.1), evaluated on laboratory "
+        caption(ax, "Leading anti-$k_T$ $R$ = 1.2 jet clustered in the laboratory, with the IRC-safe "
+                    "iterated soft-drop multiplicity in its standard hadron-collider form ($p_T$ fractions, "
+                    "rapidity-azimuth distance, $z_{\\rm cut}$ = 0.1, $\\Delta R_{\\rm cut}$ = 0.1), evaluated on laboratory "
                     f"momenta as they are: median slope {med_s:+.3f} across the beam configurations, "
                     f"against {incl_s:+.2f} for the inclusive curve (grey).  No boost, no cone tuning, "
                     "and an observable a calculation can be compared to.")
