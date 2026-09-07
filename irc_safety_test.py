@@ -23,6 +23,7 @@ import os
 import sys
 
 import numpy as np
+from make_figures import CAPTIONS
 import awkward as ak
 import matplotlib
 matplotlib.use("Agg")
@@ -150,12 +151,13 @@ def main():
     ax.set_ylim(-8, 118)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.text(0.0, -0.24,
-            "Every constituent split into two equal halves at angle $\\delta$ (solid), or three "
-            "particles of momentum fraction $\\epsilon$ added (dashed).  A collinear-safe observable "
-            "returns to zero as $\\delta\\to0$.  $n_{90}$ does not: a democratic split doubles it, "
-            "however small the angle.  Both observables are infrared safe.",
-            transform=ax.transAxes, fontsize=7.5, color=MUTED, va="top", ha="left", wrap=True)
+    if CAPTIONS:
+        ax.text(0.0, -0.24,
+                "Every constituent split into two equal halves at angle $\\delta$ (solid), or three "
+                "particles of momentum fraction $\\epsilon$ added (dashed).  A collinear-safe observable "
+                "returns to zero as $\\delta\\to0$.  $n_{90}$ does not: a democratic split doubles it, "
+                "however small the angle.  Both observables are infrared safe.",
+                transform=ax.transAxes, fontsize=7.5, color=MUTED, va="top", ha="left", wrap=True)
     os.makedirs(args.outdir, exist_ok=True)
     for ext in ("pdf", "png"):
         fig.savefig(os.path.join(args.outdir, f"irc_safety.{ext}"), bbox_inches="tight",

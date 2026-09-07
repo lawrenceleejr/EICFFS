@@ -70,6 +70,8 @@ PT_EDGES_LAB = np.array([2.0, 2.5, 3.2, 4.0, 5.0, 6.5, 8.0, 10.0, 13.0])
 def e_label(lo, hi):
     return rf"$E_{{\rm cm}}$ = {lo:g}$-${hi:g} GeV"
 INK = "#1f1f1f"
+CAPTIONS = False               # explanatory text lives in the note and the page, not in the image
+GREY_LINE = "#9a9a9a"          # inclusive, no-control profiles: thin and quiet
 MUTED = "#8a8a8a"
 FAINT = "#d9d9d9"
 ACCENT = "#c44e52"
@@ -190,6 +192,29 @@ class EndLabels:
                                  va="center", ha="left", fontsize=self.fs, color=color)
 
 
+P_INCL = np.array([1.0, 1.6, 2.5, 4.0, 6.3, 10.0, 16.0, 25.0, 40.0, 63.0, 100.0, 160.0])
+
+
+def inclusive_curves(ax, beams, key, obs, text_fmt, edges=P_INCL):
+    """
+    The no-control profile of every beam configuration as a thin grey line.
+    Returns (labels, slopes, curves): call ``labels.draw(column=True)`` once the
+    axes limits are final; ``slopes`` maps beam label to the log-log slope.
+    """
+    labels = EndLabels(ax, min_sep_pt=9.0, fontsize=7)
+    slopes, curves = {}, []
+    for lab, d in beams:
+        xc, mu, se = profile(d[key], d[obs], edges, min_entries=200)
+        ok = np.isfinite(mu)
+        if ok.sum() < 2:
+            continue
+        ax.plot(xc[ok], mu[ok], color=GREY_LINE, lw=0.7, zorder=0, solid_capstyle="round")
+        labels.add(xc[ok][-1], mu[ok][-1], text_fmt.format(lab.replace("x", r"$\times$")), MUTED)
+        slopes[lab] = float(np.polyfit(np.log(xc[ok]), np.log(mu[ok]), 1)[0])
+        curves.append((xc[ok], mu[ok]))
+    return labels, slopes, curves
+
+
 def inclusive_curve(ax, x, y, text, edges, labels=None):
     """
     The no-control profile of one beam configuration, as a faint background line.
@@ -271,7 +296,7 @@ def clearest_row(rows):
     return best
 
 
-def beam_marks_auto(ax, rows, extra_xy=None):
+def beam_marks_auto(ax, rows, extra_xy=None, extra_curves=()):
     """
     Name the beam configurations under (or over) whichever cell line leaves the
     names clear of every other line: candidates are tried with the real renderer
@@ -288,12 +313,13 @@ def beam_marks_auto(ax, rows, extra_xy=None):
             seg.append(np.column_stack([xs[i] + t * (xs[i + 1] - xs[i]), ys[i] + t * (ys[i + 1] - ys[i])]))
         per_row.append(ax.transData.transform(np.vstack(seg)) if seg else np.zeros((0, 2)))
     extra = np.zeros((0, 2))
-    if extra_xy is not None and len(extra_xy[0]) > 1:
-        ex, ey = extra_xy
-        seg = []
+    curves = list(extra_curves) + ([extra_xy] if extra_xy is not None else [])
+    seg = []
+    for ex, ey in curves:
         for i in range(len(ex) - 1):
             t = np.linspace(0, 1, 12)
             seg.append(np.column_stack([ex[i] + t * (ex[i + 1] - ex[i]), ey[i] + t * (ey[i + 1] - ey[i])]))
+    if seg:
         extra = ax.transData.transform(np.vstack(seg))
     if not per_row:
         return
@@ -332,7 +358,9 @@ def beam_marks(ax, pts, dy=-12):
 
 
 def caption(ax, text, fontsize=7.5):
-    """Small explanatory note under the axes — the figure explains itself."""
+    """Small explanatory note under the axes; off by default, the note carries the text."""
+    if not CAPTIONS:
+        return
     t = ax.text(0.0, -0.22, text, transform=ax.transAxes, fontsize=fontsize,
                 color=MUTED, va="top", ha="left", wrap=True)
     t._is_caption = True
@@ -382,7 +410,7 @@ def save(fig, outdir, name):
     os.makedirs(outdir, exist_ok=True)
     check_labels(fig, name)
     pdf = os.path.join(outdir, name + ".pdf")
-    fig.savefig(pdf, format="pdf", bbox_inches="tight")
+    fig.savefig(pdf, format="pdf", bbox_inches="tight", dpi=400)   # dpi for rasterized shadows
     fig.savefig(os.path.join(outdir, name + ".png"), dpi=220, bbox_inches="tight")
     plt.close(fig)
     print(f"  → {pdf}")
@@ -420,7 +448,7 @@ def fig_fan(jets, outdir, obs="n90", name="ffs_fan",
     ax.set_xticks([2, 3, 5, 10, 20, 30])
     ax.set_xticklabels(["2", "3", "5", "10", "20", "30"])
     ax.minorticks_off()
-    ax.set_xlabel(r"jet momentum in the lab, $|\vec p|_{\rm lab}$  [GeV]")
+    ax.set_xlabel(r"Jet Momentum in the Lab, $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_ylabel(ylabel)
     ax.set_xlim(1.8, 60)
     range_frame(ax, allx, ally)
@@ -458,7 +486,7 @@ def fig_collapse(jets, outdir, obs="n90", name="ffs_collapse",
     ax.set_xticks([1, 2, 3, 5, 10, 20])
     ax.set_xticklabels(["1", "2", "3", "5", "10", "20"])
     ax.minorticks_off()
-    ax.set_xlabel(r"jet momentum in the colour rest frame ($\gamma^*p$ CM), $|\vec p|_{\rm cm}$  [GeV]")
+    ax.set_xlabel(r"Jet Momentum in the Colour Rest Frame ($\gamma^*p$ CM), $|\vec p|_{\rm cm}$  [GeV]")
     ax.set_ylabel(ylabel)
     ax.set_xlim(0.9, 40)
     if ylim is not None:
@@ -512,8 +540,8 @@ def fig_flat_cm(cj, outdir):
     ax.set_xticks([0.7, 1, 2, 3, 5, 8])
     ax.set_xticklabels(["0.7", "1", "2", "3", "5", "8"])
     ax.minorticks_off()
-    ax.set_xlabel(r"jet transverse momentum in the lab, $p_T^{\rm lab}$  [GeV]")
-    ax.set_ylabel(r"$\langle n_{90}\rangle$ in the colour rest frame")
+    ax.set_xlabel(r"Jet Transverse Momentum in the Lab, $p_T^{\rm lab}$  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$ in the Colour Rest Frame")
     ax.set_xlim(0.55, 24)
     range_frame(ax, allx, ally)
     labels.draw()
@@ -537,8 +565,8 @@ def fig_flat_lab(jets, outdir, ylim=None):
     ax.set_xticks([2, 3, 5, 8, 12])
     ax.set_xticklabels(["2", "3", "5", "8", "12"])
     ax.minorticks_off()
-    ax.set_xlabel(r"jet transverse momentum in the lab, $p_T^{\rm lab}$  [GeV]")
-    ax.set_ylabel(r"$\langle n_{90}\rangle$ of lab-frame jets")
+    ax.set_xlabel(r"Jet Transverse Momentum in the Lab, $p_T^{\rm lab}$  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$ of Lab-Frame Jets")
     ax.set_xlim(1.8, 34)
     if ylim is not None:
         ax.set_ylim(*ylim)
@@ -568,8 +596,8 @@ def fig_universal_cm(cj, outdir):
     ax.set_xticks([2, 3, 5, 8, 12, 20])
     ax.set_xticklabels(["2", "3", "5", "8", "12", "20"])
     ax.minorticks_off()
-    ax.set_xlabel(r"jet energy in the colour rest frame, $E_{\rm cm}$  [GeV]")
-    ax.set_ylabel(r"$\langle n_{90}\rangle$ in the colour rest frame")
+    ax.set_xlabel(r"Jet Energy in the Colour Rest Frame, $E_{\rm cm}$  [GeV]")
+    ax.set_ylabel(r"$\langle n_{90}\rangle$ in the Colour Rest Frame")
     ax.set_xlim(1.4, 50)
     range_frame(ax, allx, ally)
     labels.draw()
@@ -662,7 +690,7 @@ def fig_capture(trees, outdir):
     ax.set_xticks([1, 2, 3, 5, 8]); ax.set_xticklabels(["1", "2", "3", "5", "8"])
     ax.minorticks_off()
     ax.set_xlabel(r"$p_T^{\rm lab}$  [GeV]")
-    ax.set_ylabel("fraction of the current system\nheld by the jet")
+    ax.set_ylabel("Fraction of the Current System\nHeld by the Jet")
     ax.set_xlim(0.9, 16)
     range_frame(ax, allx, ally)
     labels.draw()
@@ -770,8 +798,8 @@ def fig_slope_vs_radius(trees, outdir):
     ax.annotate("flat", (0.42, 0.012), fontsize=7.5, color=MUTED, va="bottom")
     ax.annotate(r"anti-$k_T$ radius in the lab", (1.2, ys[-1] + 0.03), fontsize=7.5,
                 color=MUTED, ha="center")
-    ax.set_xlabel(r"jet radius $R$   (rightmost point: no cone at all)")
-    ax.set_ylabel(r"residual slope  $\mathrm{d}\ln\langle n_{90}\rangle\,/\,\mathrm{d}\ln p_T^{\rm lab}$")
+    ax.set_xlabel(r"Jet Radius $R$   (Rightmost Point: No Cone at All)")
+    ax.set_ylabel(r"Residual Slope  $\mathrm{d}\ln\langle n_{90}\rangle\,/\,\mathrm{d}\ln p_T^{\rm lab}$")
     ax.set_xlim(0.2, 4.1)
     ax.set_xticks([0.4, 0.8, 1.2, 1.6, 2.4, X_HEMI])
     ax.set_xticklabels(["0.4", "0.8", "1.2", "1.6", "2.4", "all"])
@@ -834,7 +862,7 @@ def fig_hemisphere_vs_p(trees, outdir):
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
-    ax.set_xlabel(r"full lab momentum of the current hemisphere, $|\vec p|_{\rm lab}$  [GeV]")
+    ax.set_xlabel(r"Full Lab Momentum of the Current Hemisphere, $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
     ax.set_xlim(0.9, 130)
     range_frame(ax, np.concatenate(allx), np.concatenate(ally))
@@ -860,7 +888,7 @@ def fig_hemisphere_vs_p_fixed_q(trees, outdir, q_window=(5.0, 7.5)):
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
-    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    ax.set_xlabel(r"Current-Hemisphere $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
     ax.set_xlim(0.9, 130)
     range_frame(ax, np.concatenate(allx), np.concatenate(ally))
@@ -903,7 +931,7 @@ def fig_hemisphere_p_vs_q(trees, outdir):
     ax.set_yticks([1, 2, 5, 10, 20, 50]); ax.set_yticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
     ax.set_xlabel(r"$Q$  [GeV]")
-    ax.set_ylabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    ax.set_ylabel(r"Current-Hemisphere $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_xlim(0.9, 30)
     range_frame(ax, np.concatenate(allx), np.concatenate(ally))
     labels.draw()
@@ -959,6 +987,36 @@ def _beam_cells(beams, xkey="plab", ecm_cells=False, obs="n90"):
     return rows
 
 
+class _BlurShadow:
+    """
+    Agg filter turning an artist's own alpha into a Gaussian-blurred grey shadow.
+    Applied to a marker-only copy of a line, offset by a fraction of a point.
+    """
+    def __init__(self, sigma_pt=1.1, alpha=0.32):
+        self.sigma_pt, self.alpha = sigma_pt, alpha
+
+    def __call__(self, im, dpi):
+        from scipy.ndimage import gaussian_filter
+        sig = self.sigma_pt * dpi / 72.0
+        pad = int(np.ceil(3 * sig)) + 1
+        a = np.pad(im[:, :, 3], pad)
+        a = gaussian_filter(a, sig)
+        out = np.zeros(a.shape + (4,))
+        out[..., 3] = a * self.alpha
+        return out, -pad, -pad
+
+
+def marker_shadow(ax, xs, ys, marker, ms, dx_pt=0.45, dy_pt=-0.75, zorder=2.6):
+    """A soft drop shadow under the markers at (xs, ys); the markers are drawn separately."""
+    import matplotlib.transforms as mtransforms
+    tr = mtransforms.offset_copy(ax.transData, fig=ax.figure, x=dx_pt, y=dy_pt, units="points")
+    sh, = ax.plot(np.atleast_1d(xs), np.atleast_1d(ys), ls="none", marker=marker, ms=ms,
+                  color="black", mec="none", transform=tr, zorder=zorder)
+    sh.set_agg_filter(_BlurShadow())
+    sh.set_rasterized(True)
+    return sh
+
+
 def _blend(c1, c2):
     a, b = np.array(mcolors.to_rgb(c1)), np.array(mcolors.to_rgb(c2))
     return tuple(0.5 * (a + b))
@@ -991,6 +1049,7 @@ def _draw_beam_rows(ax, rows, colors, ribbon=False):
     for name, iw, iq, pts in rows:
         xs = np.array([p[0] for p in pts]); ys = np.array([p[1] for p in pts]); es = np.array([p[2] for p in pts])
         col = colors[iw]
+        marker_shadow(ax, xs, ys, Q_MARKERS[iq], 3.5)
         ax.errorbar(xs, ys, yerr=es, color=col, lw=1.1, elinewidth=0.6, capsize=0,
                     marker=Q_MARKERS[iq], ms=3.5, mec="white", mew=0.4, zorder=3)
         if not ribbon:
@@ -1000,13 +1059,34 @@ def _draw_beam_rows(ax, rows, colors, ribbon=False):
     return labels, np.concatenate(allx), np.concatenate(ally), flat
 
 
+def _beam_panel(ax, rows, colors, beams, obs, incl_fmt, inclusive_path, ribbon=True):
+    """Shared drawing for one beam-energy panel; returns (flat slopes, inclusive slope of the reference beam)."""
+    labels_rows, allx, ally, flat = _draw_beam_rows(ax, rows, colors, ribbon=ribbon)
+    labels_inc, slopes, curves = inclusive_curves(ax, beams, "plab", obs, incl_fmt)
+    return labels_inc, slopes.get(inclusive_path, np.nan), curves, allx, ally, flat
+
+
 def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     """
-    beam_paths: list of (label, path) in increasing sqrt(s).  Three figures:
-    hemisphere at fixed (W, Q); leading R = 0.4 lab jet at fixed (W, Q);
-    gamma*p-frame jets at fixed (E_cm, Q).
+    beam_paths: list of (label, path) in increasing sqrt(s).  Four figures:
+    hemisphere at fixed (W, Q); leading R = 1.2 lab jet at fixed (W, Q), for n90
+    and for standard-form soft drop; gamma*p-frame jets at fixed (E_cm, Q).
     """
     results = {}
+
+    def finish(ax, labels_inc, curves, rows, ticks, xlim, ybottom=None, cells=BEAM_CELLS_W,
+               colors=W3_COLORS, symbol="W"):
+        ax.set_xscale("log")
+        ax.set_xticks(ticks); ax.set_xticklabels([str(t) for t in ticks])
+        ax.minorticks_off()
+        ax.set_xlim(*xlim)
+        range_frame(ax, allx, ally)
+        if ybottom is not None:
+            ax.set_ylim(bottom=ybottom)
+        labels_inc.draw(column=True)
+        q_key(ax, y=1.09)
+        w_key(ax, cells, colors, y=1.03, symbol=symbol)
+        beam_marks_auto(ax, rows, extra_curves=curves)
 
     # -- whole current hemisphere ------------------------------------------
     beams = [(lab, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90"],
@@ -1014,63 +1094,34 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
              for lab, p in beam_paths]
     rows = _beam_cells(beams)
     fig, ax = plt.subplots(figsize=(4.8, 3.8))
-    if inclusive_path:
-        d = beams[[l for l, _ in beam_paths].index(inclusive_path)][1]
-        xc, mu, se = profile(d["plab"], d["n90"], P_HEMI, min_entries=200)
-        ok = np.isfinite(mu)
-        ax.plot(xc[ok], mu[ok], color=FAINT, lw=2.4, zorder=0)
-        ax.annotate(f"all hemispheres, {inclusive_path}", (xc[ok][-1], mu[ok][-1]),
-                    xytext=(6, 0), textcoords="offset points", fontsize=7, color=MUTED, va="center")
-    labels, allx, ally, flat = _draw_beam_rows(ax, rows, W3_COLORS, ribbon=True)
-    ax.set_xscale("log")
-    ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
-    ax.minorticks_off()
-    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    labels_inc, incl_slope, curves, allx, ally, flat = _beam_panel(
+        ax, rows, W3_COLORS, beams, "n90", "All Hemispheres, {}", inclusive_path)
+    ax.set_xlabel(r"Current-Hemisphere $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
-    ax.set_xlim(0.9, 200)
-    range_frame(ax, allx, ally)
-    q_key(ax, y=1.09)
-    w_key(ax, BEAM_CELLS_W, W3_COLORS, y=1.03)
-    beam_marks_auto(ax, rows)
+    finish(ax, labels_inc, curves, rows, [1, 2, 5, 10, 20, 50], (0.9, 200))
     med = float(np.median(flat))
-    incl_slope = np.polyfit(np.log(xc[ok]), np.log(mu[ok]), 1)[0] if inclusive_path else np.nan
     caption(ax, "Each line is one cell of fixed $(W, Q)$, so fixed colour-frame kinematics, measured "
                 "in three EIC beam configurations.  The beam energy changes only the lab frame.  Along "
                 "each line the current hemisphere's lab momentum moves by up to a factor of ten and "
                 f"$\\langle n_{{90}}\\rangle$ does not follow: median slope d ln$\\langle n_{{90}}\\rangle$/d ln$p$ = "
-                f"{med:+.2f} per cell, against {incl_slope:+.2f} for the inclusive curve (grey).  "
-                "Marker shape encodes the $Q$ bin, colour the $W$ bin; each $Q$ bin is drawn as one "
-                "sheet spanned by beam energy and $W$.")
+                f"{med:+.2f} per cell, against {incl_slope:+.2f} for the inclusive curve (grey).")
     save(fig, outdir, "beam_energy_hemisphere")
     results["hemisphere"] = flat
 
-    # -- leading R = 0.4 lab jet: the cone breaks the invariance -----------
+    # -- leading R = 1.2 lab jet -------------------------------------------
     beams_j = [(lab, _load_tree(p, "jets_R1p2", ["W", "Q2", "plab", "n90", "lead", "current"],
                                 lambda d: d["lead"] & d["current"] & np.isfinite(d["n90"])))
                for lab, p in beam_paths]
     rows = _beam_cells(beams_j)
     fig, ax = plt.subplots(figsize=(4.8, 3.8))
-    incl_j = np.nan
-    if inclusive_path:
-        d = beams_j[[l for l, _ in beam_paths].index(inclusive_path)][1]
-        incl_j = inclusive_curve(ax, d["plab"], d["n90"], f"all lab jets, {inclusive_path}", P_HEMI)
-    labels, allx, ally, flat = _draw_beam_rows(ax, rows, W3_COLORS, ribbon=True)
-    ax.set_xscale("log")
-    ax.set_xticks([2, 5, 10, 20, 50]); ax.set_xticklabels(["2", "5", "10", "20", "50"])
-    ax.minorticks_off()
-    ax.set_xlabel(r"jet $|\vec p|_{\rm lab}$  [GeV]")
+    labels_inc, incl_j, curves, allx, ally, flat = _beam_panel(
+        ax, rows, W3_COLORS, beams_j, "n90", "All Lab Jets, {}", inclusive_path)
+    ax.set_xlabel(r"Jet $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
-    ax.set_xlim(1.9, 150)
-    range_frame(ax, allx, ally)
-    q_key(ax, y=1.09)
-    w_key(ax, BEAM_CELLS_W, W3_COLORS, y=1.03)
-    beam_marks_auto(ax, rows)
+    finish(ax, labels_inc, curves, rows, [2, 5, 10, 20, 50], (1.9, 150))
     med_j = float(np.median(flat))
-    caption(ax, "The same cells and beam configurations for the leading anti-$k_T$ jet clustered in the "
-                "laboratory at $R$ = 1.2, the radius EIC studies use: median slope "
-                f"{med_j:+.3f}, against {incl_j:+.2f} for the inclusive curve (grey).  A plain lab "
-                "cone of sensible size is already frame independent; the $R$ = 0.4 of the reference "
-                "paper is the worst case, shown in the radius scan.")
+    caption(ax, f"Leading anti-$k_T$ $R$ = 1.2 lab jet: median slope {med_j:+.3f}, "
+                f"against {incl_j:+.2f} for the inclusive curve.")
     save(fig, outdir, "beam_energy_labjet")
     results["labjet"] = flat
 
@@ -1081,29 +1132,14 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     rows = _beam_cells(beams_s, obs="n_sd_pp")
     if rows:
         fig, ax = plt.subplots(figsize=(4.8, 3.8))
-        incl_s = np.nan
-        if inclusive_path:
-            d = beams_s[[l for l, _ in beam_paths].index(inclusive_path)][1]
-            incl_s = inclusive_curve(ax, d["plab"], d["n_sd_pp"], f"all lab jets, {inclusive_path}", P_HEMI)
-        labels, allx, ally, flat = _draw_beam_rows(ax, rows, W3_COLORS, ribbon=True)
-        ax.set_xscale("log")
-        ax.set_xticks([2, 5, 10, 20, 50]); ax.set_xticklabels(["2", "5", "10", "20", "50"])
-        ax.minorticks_off()
-        ax.set_xlabel(r"jet $|\vec p|_{\rm lab}$  [GeV]")
+        labels_inc, incl_s, curves, allx, ally, flat = _beam_panel(
+            ax, rows, W3_COLORS, beams_s, "n_sd_pp", "All Lab Jets, {}", inclusive_path)
+        ax.set_xlabel(r"Jet $|\vec p|_{\rm lab}$  [GeV]")
         ax.set_ylabel(r"$\langle n_{\rm SD}\rangle$")
-        ax.set_xlim(1.9, 150)
-        range_frame(ax, allx, ally)
-        ax.set_ylim(bottom=1.6)
-        q_key(ax, y=1.09)
-        w_key(ax, BEAM_CELLS_W, W3_COLORS, y=1.03)
-        beam_marks_auto(ax, rows)
+        finish(ax, labels_inc, curves, rows, [2, 5, 10, 20, 50], (1.9, 150), ybottom=1.6)
         med_s = float(np.median(flat))
-        caption(ax, "Leading anti-$k_T$ $R$ = 1.2 jet clustered in the laboratory, with the IRC-safe "
-                    "iterated soft-drop multiplicity in its standard hadron-collider form ($p_T$ fractions, "
-                    "rapidity-azimuth distance, $z_{\\rm cut}$ = 0.1, $\\Delta R_{\\rm cut}$ = 0.1), evaluated on laboratory "
-                    f"momenta as they are: median slope {med_s:+.3f} across the beam configurations, "
-                    f"against {incl_s:+.2f} for the inclusive curve (grey).  No boost, no cone tuning, "
-                    "and an observable a calculation can be compared to.")
+        caption(ax, f"Standard-form soft drop on the same jets: median slope {med_s:+.3f}, "
+                    f"against {incl_s:+.2f} for the inclusive curve.")
         save(fig, outdir, "beam_energy_labjet_sd")
         results["labjet_sd"] = flat
 
@@ -1121,27 +1157,16 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     if rows:
         fig, ax = plt.subplots(figsize=(4.8, 3.8))
         # no ribbons here: the E_cm cells are different objects, not one system under boosts
-        labels, allx, ally, flat = _draw_beam_rows(ax, rows, E_COLORS)
-        incl_c = np.nan
-        if inclusive_path:
-            d = beams_c[[l for l, _ in beam_paths].index(inclusive_path)][1]
-            incl_c = inclusive_curve(ax, d["plab"], d["n90"],
-                                     rf"all $\gamma^*p$-frame jets, {inclusive_path}", P_HEMI)
-        ax.set_xscale("log")
-        ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
-        ax.minorticks_off()
-        ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the $\gamma^*p$-frame jet  [GeV]")
+        labels_inc, incl_c, curves, allx, ally, flat = _beam_panel(
+            ax, rows, E_COLORS, beams_c, "n90", r"All $\gamma^*p$-Frame Jets, {}", inclusive_path,
+            ribbon=False)
+        ax.set_xlabel(r"$\gamma^*p$-Frame Jet $|\vec p|_{\rm lab}$  [GeV]")
         ax.set_ylabel(r"$\langle n_{90}\rangle$")
-        ax.set_xlim(0.9, 200)
-        range_frame(ax, allx, ally)
-        q_key(ax, y=1.09)
-        w_key(ax, E_SLICES, E_COLORS, y=1.03, symbol="E_{\\rm cm}")
-        beam_marks_auto(ax, rows)
+        finish(ax, labels_inc, curves, rows, [1, 2, 5, 10, 20, 50], (0.9, 200),
+               cells=E_SLICES, colors=E_COLORS, symbol="E_{\\rm cm}")
         med_c = float(np.median(flat))
-        caption(ax, "Jets clustered in the colour rest frame with $n_{90}$ computed from their lab "
-                    "momenta, in cells of fixed jet energy in that frame and fixed $Q$, across the three "
-                    f"beam configurations: median slope {med_c:+.2f}, against {incl_c:+.2f} for the "
-                    "inclusive curve (grey).")
+        caption(ax, f"$\\gamma^*p$-frame jets: median slope {med_c:+.2f}, against {incl_c:+.2f} "
+                    "for the inclusive curve.")
         save(fig, outdir, "beam_energy_cmjet")
         results["cmjet"] = flat
     return results
@@ -1198,18 +1223,18 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     SD = "#7a4fa3"
     # standard-form soft drop is boost invariant along the axis, so lab momenta suffice
     rungs_sd = [
-        ("lab cone $R$ = 1.2\nat fixed $(W, Q)$", _cell_slopes(labj, "W", BEAM_CELLS_W, "n_sd_pp")),
-        ("whole current hemisphere,\nfrom lab momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n_sd_pp")),
-        ("$\\gamma^*p$-frame jet,\nfrom lab momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n_sd_pp")),
+        ("Lab Cone $R$ = 1.2\nat Fixed $(W, Q)$", _cell_slopes(labj, "W", BEAM_CELLS_W, "n_sd_pp")),
+        ("Whole Current Hemisphere,\nfrom Lab Momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n_sd_pp")),
+        ("$\\gamma^*p$-Frame Jet,\nfrom Lab Momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n_sd_pp")),
     ]
     sd_by_name = dict(rungs_sd)
     rungs = [
-        ("no control:\nall hemispheres, one beam", [inclusive_slope], ACCENT),
-        ("lab cone $R$ = 1.2\nat fixed $(W, Q)$", _cell_slopes(labj, "W", BEAM_CELLS_W, "n90"), INK),
-        ("whole current hemisphere,\nfrom lab momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n90"), INK),
-        ("$\\gamma^*p$-frame jet,\nfrom lab momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n90"), INK),
-        ("whole current hemisphere,\nfrom frame momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n90_cm"), "#2f6b4f"),
-        ("$\\gamma^*p$-frame jet,\nfrom frame momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n90_cm"), "#2f6b4f"),
+        ("No Control:\nAll Hemispheres, One Beam", [inclusive_slope], ACCENT),
+        ("Lab Cone $R$ = 1.2\nat Fixed $(W, Q)$", _cell_slopes(labj, "W", BEAM_CELLS_W, "n90"), INK),
+        ("Whole Current Hemisphere,\nfrom Lab Momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n90"), INK),
+        ("$\\gamma^*p$-Frame Jet,\nfrom Lab Momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n90"), INK),
+        ("Whole Current Hemisphere,\nfrom Frame Momenta", _cell_slopes(hemi, "W", BEAM_CELLS_W, "n90_cm"), "#2f6b4f"),
+        ("$\\gamma^*p$-Frame Jet,\nfrom Frame Momenta", _cell_slopes(cmj, "e_hcm", E_CELLS, "n90_cm"), "#2f6b4f"),
     ]
     fig, ax = plt.subplots(figsize=(5.4, 4.5))
     ax.axvline(0.0, color=FAINT, lw=0.9, zorder=0)
@@ -1230,6 +1255,7 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
         if len(sl) > 1:
             ax.plot([sl.min(), sl.max()], [y + 0.13, y + 0.13], color=col, lw=1.0, alpha=0.35,
                     solid_capstyle="butt")
+        marker_shadow(ax, [med], [y + 0.13], "o", 5.5)
         ax.plot([med], [y + 0.13], marker="o", ms=5.5, color=col, mec="white", mew=0.6, zorder=3)
         ax.annotate(f"{med:+.3f}".replace("+0.000", " 0.000"), (med, y + 0.13), xytext=(0, 7),
                     textcoords="offset points", ha="center", fontsize=7.5, color=col)
@@ -1239,6 +1265,7 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
             msd = np.median(sd)
             ax.plot([sd.min(), sd.max()], [y - 0.22, y - 0.22], color=SD, lw=1.0,
                     alpha=0.35, solid_capstyle="butt")
+            marker_shadow(ax, [msd], [y - 0.22], "s", 4.5)
             ax.plot([msd], [y - 0.22], marker="s", ms=4.5, color=SD, mec="white",
                     mew=0.6, zorder=3)
             txt = f"{msd:+.3f}"
@@ -1250,7 +1277,7 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     ax.tick_params(axis="y", length=0)
     ax.spines["left"].set_visible(False)
     ax.set_ylim(-0.62, len(rungs) - 0.15)
-    ax.set_xlabel(r"lab-frame dependence,  $\mathrm{d}\ln\langle\,\cdot\,\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
+    ax.set_xlabel(r"Lab-Frame Dependence,  $\mathrm{d}\ln\langle\,\cdot\,\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
     ax.set_xlim(-0.12, 0.36)
     ax.set_xticks([-0.1, 0.0, 0.1, 0.2, 0.3])
     range_frame(ax, np.array([-0.1, 0.3]), None)
@@ -1258,9 +1285,9 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     ax.annotate(r"$n_{90}$", (0.20, len(rungs) - 2.30), xytext=(6, 0),
                 textcoords="offset points", fontsize=7.5, color=INK, va="center")
     ax.plot([0.20], [len(rungs) - 2.60], marker="s", ms=4.0, color=SD, mec="white", mew=0.5)
-    ax.annotate(r"$n_{\rm SD}$, standard form", (0.20, len(rungs) - 2.60), xytext=(6, 0),
+    ax.annotate(r"$n_{\rm SD}$, Standard Form", (0.20, len(rungs) - 2.60), xytext=(6, 0),
                 textcoords="offset points", fontsize=7.5, color=SD, va="center")
-    ax.annotate("frame independent", (0.0, len(rungs) - 0.45), xytext=(0, 0),
+    ax.annotate("Frame Independent", (0.0, len(rungs) - 0.45), xytext=(0, 0),
                 textcoords="offset points", ha="center", fontsize=7, color=MUTED)
     caption(ax, "Every rung is the same physics, measured differently: $n_{90}$ (circles) and the "
                 "IRC-safe iterated soft-drop multiplicity in its standard hadron-collider form "
@@ -1287,15 +1314,15 @@ def fig_frame_breakers(beam_paths, outdir, inclusive_slope):
     lab04 = [(l, _load_tree(p, "jets_R0p4", ["W", "Q2", "plab", "n90", "lead", "current"],
                             lambda d: d["lead"] & d["current"] & np.isfinite(d["n90"]))) for l, p in beam_paths]
     rows = [
-        ("no $(W, Q)$ control: the inclusive measurement", inclusive_slope, "n90"),
-        ("lab cone at $R$ = 0.4 instead of $R\\approx1$", np.median(_cell_slopes(lab04, "W", BEAM_CELLS_W, "n90")), "n90"),
-        ("ordering a wide object's constituents by lab momentum",
+        ("No $(W, Q)$ Control: the Inclusive Measurement", inclusive_slope, "n90"),
+        ("Lab Cone at $R$ = 0.4 Instead of $R\\approx1$", np.median(_cell_slopes(lab04, "W", BEAM_CELLS_W, "n90")), "n90"),
+        ("Ordering a Wide Object's Constituents by Lab Momentum",
          np.median(_cell_slopes(hemi, "W", BEAM_CELLS_W, "n90")), "n90"),
     ]
     for fname, key, label, obs in [
-        ("sd_frame_choice.json", "lab_ee", "soft drop with an opening-angle cut in the lab", "n_SD"),
-        ("object_choice.json", "gamma*p region, |p|>0.5", "$|\\vec p|_{\\rm lab} > 0.5$ GeV on every particle", "n90"),
-        ("object_choice.json", "gamma*p region, pT>0.15", "$p_T > 0.15$ GeV on every particle", "n90"),
+        ("sd_frame_choice.json", "lab_ee", "Soft Drop with an Opening-Angle Cut in the Lab", "n_SD"),
+        ("object_choice.json", "gamma*p region, |p|>0.5", "$|\\vec p|_{\\rm lab} > 0.5$ GeV on Every Particle", "n90"),
+        ("object_choice.json", "gamma*p region, pT>0.15", "$p_T > 0.15$ GeV on Every Particle", "n90"),
     ]:
         path = os.path.join(outdir, fname)
         if os.path.exists(path):
@@ -1322,7 +1349,7 @@ def fig_frame_breakers(beam_paths, outdir, inclusive_slope):
     hi = max(r[1] for r in rows) + 0.08
     ax.set_xlim(lo, hi)
     ax.spines["bottom"].set_bounds(np.floor(lo * 10) / 10, np.ceil(hi * 10) / 10)
-    ax.set_xlabel(r"lab-frame dependence introduced,  $\mathrm{d}\ln\langle\,\cdot\,\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
+    ax.set_xlabel(r"Lab-Frame Dependence Introduced,  $\mathrm{d}\ln\langle\,\cdot\,\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
     caption(ax, "Each bar is one choice a measurement could make, and the laboratory dependence it "
                 "introduces on the beam-energy test.  None of them is a property of fragmentation: "
                 "the first is a failure to control the colour-frame kinematics, the others are cuts "
@@ -1363,21 +1390,22 @@ def fig_ladder_vs_radius(beam_paths, outdir, inclusive_slope=np.nan):
         ax.plot([xs[0] - 0.1, xs[-1]], [inclusive_slope] * 2, color=ACCENT, lw=0.9,
                 ls=(0, (4, 2)), zorder=0)
     ax.plot([xs[0] - 0.1, xs[-1]], [h90, h90], color="#2f6b4f", lw=0.9, ls=(0, (4, 2)), zorder=0)
-    ax.plot(xs, y90, color=INK, lw=1.3, marker="o", ms=4.5, mec="white", mew=0.5)
-    ax.plot(xs, ypp, color=SD, lw=1.3, marker="s", ms=4, mec="white", mew=0.5)
+    marker_shadow(ax, xs, y90, "o", 4.5); marker_shadow(ax, xs, ypp, "s", 4)
+    ax.plot(xs, y90, color=INK, lw=1.3, marker="o", ms=4.5, mec="white", mew=0.5, zorder=3)
+    ax.plot(xs, ypp, color=SD, lw=1.3, marker="s", ms=4, mec="white", mew=0.5, zorder=3)
     ax.plot(xs, ysd, color=SD, lw=1.0, ls=(0, (2, 2)), marker="s", ms=3.5, mec="white", mew=0.5,
             alpha=0.75)
     labels = EndLabels(ax, min_sep_pt=11.0, fontsize=7.5)
-    labels.add(xs[-1], y90[-1], r"$n_{90}$, lab cone", INK)
-    labels.add(xs[-1], ypp[-1], r"$n_{\rm SD}$, standard form, lab cone", SD)
-    labels.add(xs[-1], h90, "whole hemisphere, frame momenta", "#2f6b4f")
-    labels.add(xs[-1], ysd[-1], r"$n_{\rm SD}$, $e^+e^-$ form in the lab", SD)
+    labels.add(xs[-1], y90[-1], r"$n_{90}$, Lab Cone", INK)
+    labels.add(xs[-1], ypp[-1], r"$n_{\rm SD}$, Standard Form, Lab Cone", SD)
+    labels.add(xs[-1], h90, "Whole Hemisphere, Frame Momenta", "#2f6b4f")
+    labels.add(xs[-1], ysd[-1], r"$n_{\rm SD}$, $e^+e^-$ Form in the Lab", SD)
     if np.isfinite(inclusive_slope):
-        labels.add(xs[-1], inclusive_slope, "no $(W, Q)$ control, all hemispheres", ACCENT)
+        labels.add(xs[-1], inclusive_slope, "No $(W, Q)$ Control, All Hemispheres", ACCENT)
     labels.draw(column=True)
-    ax.annotate("radius EIC studies use", (1.0, 0.085), ha="center", fontsize=7, color=MUTED)
-    ax.set_xlabel(r"anti-$k_T$ radius of the lab jet, $R$")
-    ax.set_ylabel("frame dependence across beam energies")
+    ax.annotate("Radius EIC Studies Use", (1.0, 0.085), ha="center", fontsize=7, color=MUTED)
+    ax.set_xlabel(r"Anti-$k_T$ Radius of the Lab Jet, $R$")
+    ax.set_ylabel("Frame Dependence Across Beam Energies")
     ax.set_xlim(0.2, 3.5)
     ax.set_xticks([0.4, 0.8, 1.2, 1.6, 2.4])
     ax.set_xticklabels(["0.4", "0.8", "1.2", "1.6", "2.4"])
@@ -1427,7 +1455,7 @@ def fig_beam_sd(beam_paths, outdir):
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
-    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    ax.set_xlabel(r"Current-Hemisphere $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_ylabel(r"$\langle n_{\rm SD}\rangle$")
     ax.set_xlim(0.9, 260)
     ax.set_ylim(bottom=0)
@@ -1465,21 +1493,22 @@ def fig_beam_ordering(beam_paths, outdir):
             if len(xs) < 2:
                 continue
             xs = np.array(xs)
-            ax.plot(xs, yl, color=INK, lw=1.0, marker=Q_MARKERS[iq], ms=3.2, mec="white", mew=0.4)
-            ax.plot(xs, yc, color="#2f6b4f", lw=1.0, marker=Q_MARKERS[iq], ms=3.2, mec="white", mew=0.4)
+            marker_shadow(ax, xs, yl, Q_MARKERS[iq], 3.2); marker_shadow(ax, xs, yc, Q_MARKERS[iq], 3.2)
+            ax.plot(xs, yl, color=INK, lw=1.0, marker=Q_MARKERS[iq], ms=3.2, mec="white", mew=0.4, zorder=3)
+            ax.plot(xs, yc, color="#2f6b4f", lw=1.0, marker=Q_MARKERS[iq], ms=3.2, mec="white", mew=0.4, zorder=3)
             allx += [xs, xs]; ally += [np.array(yl), np.array(yc)]
     # one label per family, on the highest line
     top = max(range(len(ally)), key=lambda i: ally[i].max())
-    labels.add(allx[top], ally[top], "ordered in the colour frame" if top % 2 else "ordered in the lab",
+    labels.add(allx[top], ally[top], "Ordered in the Colour Frame" if top % 2 else "Ordered in the Lab",
                "#2f6b4f" if top % 2 else INK)
-    ax.annotate("ordered by lab momenta", (allx[0][-1], ally[0][-1]), xytext=(7, -2),
+    ax.annotate("Ordered by Lab Momenta", (allx[0][-1], ally[0][-1]), xytext=(7, -2),
                 textcoords="offset points", fontsize=7.5, color=INK, va="center")
-    ax.annotate("ordered by colour-frame momenta", (allx[1][-1], ally[1][-1]), xytext=(7, 4),
+    ax.annotate("Ordered by Colour-Frame Momenta", (allx[1][-1], ally[1][-1]), xytext=(7, 4),
                 textcoords="offset points", fontsize=7.5, color="#2f6b4f", va="center")
     ax.set_xscale("log")
     ax.set_xticks([1, 2, 5, 10, 20, 50]); ax.set_xticklabels(["1", "2", "5", "10", "20", "50"])
     ax.minorticks_off()
-    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    ax.set_xlabel(r"Current-Hemisphere $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
     ax.set_xlim(0.9, 260)
     range_frame(ax, np.concatenate(allx), np.concatenate(ally))

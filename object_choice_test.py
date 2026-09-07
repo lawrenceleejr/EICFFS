@@ -24,6 +24,7 @@ import os
 import sys
 
 import numpy as np
+from make_figures import CAPTIONS
 import awkward as ak
 import matplotlib
 matplotlib.use("Agg")
@@ -161,15 +162,16 @@ def main():
     ax.set_xticks([-0.1, 0.0, 0.1, 0.2])
     ax.set_xlabel(r"lab-frame dependence,  $\mathrm{d}\ln\langle n_{90}\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
     ax.spines["bottom"].set_bounds(-0.1, 0.2)
-    t = ax.text(0.0, -0.30,
-                "Taking the whole current region removes the cone entirely, and a detector's "
-                "angular acceptance does not spoil it: 99.7% of the current hemisphere's momentum "
-                "lies inside $|\\eta| < 3.5$.  What does spoil it is a threshold on total momentum, "
-                "which is not invariant under a boost along the axis.  A transverse-momentum "
-                "threshold is, and costs nothing.  The $\\gamma^*p$ region also holds four times "
-                "the particles of the Breit hemisphere.",
-                transform=ax.transAxes, fontsize=7.5, color=MUTED, va="top", ha="left", wrap=True)
-    t._is_caption = True
+    if CAPTIONS:
+        t = ax.text(0.0, -0.30,
+                    "Taking the whole current region removes the cone entirely, and a detector's "
+                    "angular acceptance does not spoil it: 99.7% of the current hemisphere's momentum "
+                    "lies inside $|\\eta| < 3.5$.  What does spoil it is a threshold on total momentum, "
+                    "which is not invariant under a boost along the axis.  A transverse-momentum "
+                    "threshold is, and costs nothing.  The $\\gamma^*p$ region also holds four times "
+                    "the particles of the Breit hemisphere.",
+                    transform=ax.transAxes, fontsize=7.5, color=MUTED, va="top", ha="left", wrap=True)
+        t._is_caption = True
     os.makedirs(args.outdir, exist_ok=True)
     for ext in ("pdf", "png"):
         fig.savefig(os.path.join(args.outdir, f"object_choice.{ext}"), bbox_inches="tight",

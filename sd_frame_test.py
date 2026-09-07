@@ -42,6 +42,7 @@ plt.style.use(os.path.join(HERE, "utils", "tufte.mplstyle"))
 from utils.dis_kinematics import (hcm_boost_matrix, breit_boost_matrix, apply_boost,
                                   rest_frame_boost_matrix)
 from analyze_events import isd_multiplicity, SD_ZCUT, SD_BETA, SD_THETA_CUT, SD_R0
+from make_figures import CAPTIONS
 
 INK, MUTED, FAINT, GOOD, BAD = "#1f1f1f", "#8a8a8a", "#d9d9d9", "#2f6b4f", "#c44e52"
 W_CELLS = [(10, 15), (15, 22), (22, 28)]
@@ -223,7 +224,7 @@ def draw_cells(beams, key, name, title, outdir, span, caption_text):
         ax.annotate(lab.replace("x", "$\\times$"), (x, y), xytext=(0, -12),
                     textcoords="offset points", fontsize=6.5, color=MUTED, ha="center")
     # one label per W family, on its right-most cell, in a leader-line column
-    from make_figures import EndLabels
+    from make_figures import CAPTIONS, EndLabels
     best = {}
     for iw, iq, wlo, whi, xs, ys, es in rows:
         if iw not in best or xs[-1] > best[iw][0]:
@@ -232,9 +233,10 @@ def draw_cells(beams, key, name, title, outdir, span, caption_text):
     for iw, (x, y, wlo, whi) in best.items():
         labels.add(x, y, rf"$W$ = {wlo}$-${whi} GeV", W_COLS[iw])
     labels.draw(column=True)
-    t = ax.text(0.0, -0.26, caption_text, transform=ax.transAxes, fontsize=7.5, color=MUTED,
-                va="top", ha="left", wrap=True)
-    t._is_caption = True
+    if CAPTIONS:
+        t = ax.text(0.0, -0.26, caption_text, transform=ax.transAxes, fontsize=7.5, color=MUTED,
+                    va="top", ha="left", wrap=True)
+        t._is_caption = True
     for ext in ("pdf", "png"):
         fig.savefig(os.path.join(outdir, f"{name}.{ext}"), bbox_inches="tight",
                     dpi=220 if ext == "png" else None)
@@ -293,15 +295,16 @@ def main():
     ax.set_xticks([-0.6, -0.4, -0.2, 0.0])
     ax.spines["bottom"].set_bounds(-0.6, 0.0)
     ax.set_xlabel(r"lab-frame dependence,  $\mathrm{d}\ln\langle n_{\rm SD}\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
-    t = ax.text(0.0, -0.34,
-                "Soft drop is normally written with transverse-momentum fractions and a "
-                "rapidity-azimuth distance, which is invariant under boosts along the beam.  In DIS "
-                "the boost that matters runs along $P+q$: measure the same standard variables about "
-                "that axis and the observable is frame independent without boosting anything.  "
-                "Going to the object's rest frame works equally well but is not the standard "
-                "convention and destroys the angle for two-body objects.",
-                transform=ax.transAxes, fontsize=7.5, color=MUTED, va="top", ha="left", wrap=True)
-    t._is_caption = True
+    if CAPTIONS:
+        t = ax.text(0.0, -0.34,
+                    "Soft drop is normally written with transverse-momentum fractions and a "
+                    "rapidity-azimuth distance, which is invariant under boosts along the beam.  In DIS "
+                    "the boost that matters runs along $P+q$: measure the same standard variables about "
+                    "that axis and the observable is frame independent without boosting anything.  "
+                    "Going to the object's rest frame works equally well but is not the standard "
+                    "convention and destroys the angle for two-body objects.",
+                    transform=ax.transAxes, fontsize=7.5, color=MUTED, va="top", ha="left", wrap=True)
+        t._is_caption = True
     os.makedirs(args.outdir, exist_ok=True)
     for ext in ("pdf", "png"):
         fig.savefig(os.path.join(args.outdir, f"sd_frame_choice.{ext}"), bbox_inches="tight",
