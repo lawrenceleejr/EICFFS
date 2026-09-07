@@ -492,7 +492,8 @@ def beam_marks_auto(ax, rows, extra_xy=None, extra_curves=()):
 def beam_marks(ax, pts, dy=-12):
     """Name the three beam configurations under the points of one cell."""
     arts = []
-    for x, y, _, lab in pts:
+    for p in pts:
+        x, y, lab = p[0], p[1], p[3]
         arts.append(ax.annotate(lab.replace("x", "$\\times$"), (x, y), xytext=(0, dy),
                                 textcoords="offset points", fontsize=6.5, color=MUTED, ha="center"))
     return arts
@@ -1121,7 +1122,9 @@ def _beam_cells(beams, xkey="plab", ecm_cells=False, obs="n90"):
                     pts = []
                     break
                 v = d[obs][m]
-                pts.append((np.median(d[xkey][m]), v.mean(), v.std(ddof=1) / np.sqrt(len(v)), label))
+                p16, p84 = np.percentile(d[xkey][m], [16, 84])
+                pts.append((np.median(d[xkey][m]), v.mean(), v.std(ddof=1) / np.sqrt(len(v)), label,
+                            p16, p84))
             if pts and len(pts) == used and used >= 2:
                 name = (rf"$E_{{\rm cm}}$ {wlo:g}$-${whi:g}, $Q$ {qlo:g}$-${qhi:g}" if ecm_cells
                         else rf"$W$ {wlo:g}$-${whi:g}, $Q$ {qlo:g}$-${qhi:g}")
@@ -1193,8 +1196,14 @@ def _draw_beam_rows(ax, rows, colors, ribbon=False, q_styles=False):
         col = colors[iw]
         ax.errorbar(xs, ys, yerr=es, color=col, lw=1.1, elinewidth=0.6, capsize=0, zorder=3,
                     ls=Q_STYLES[iq] if q_styles else "-")
-        for x, y, e, lab in pts:                      # marker shape encodes the beam configuration
+        for p in pts:                                 # marker shape encodes the beam configuration
+            x, y, e, lab = p[:4]
             mk = BEAM_MARKERS.get(lab, "o")
+            if len(p) >= 6 and np.isfinite(p[4]) and np.isfinite(p[5]):
+                # the lab momenta this beam actually populates inside the cell (16th-84th percentile):
+                # not a lever, just the width of the (W, Q) bin and of the object's own spread
+                ax.errorbar([x], [y], xerr=[[x - p[4]], [p[5] - x]], fmt="none", ecolor=col,
+                            elinewidth=0.7, alpha=0.45, capsize=1.6, capthick=0.6, zorder=2.5)
             marker_shadow(ax, [x], [y], mk, 3.6)
             ax.plot([x], [y], ls="none", marker=mk, ms=3.6, color=col, mec="white", mew=0.45, zorder=4)
         if not ribbon:

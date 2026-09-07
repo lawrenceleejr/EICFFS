@@ -125,6 +125,20 @@ either from laboratory momenta or from colour-frame momenta.
 | *W* 22–28, *Q* 3.3–5 | — | 2.62 @ 2.8 | 2.52 @ 6.1 | ×2.2 | −0.053 |
 | *W* 22–28, *Q* 5–7.5 | — | 3.36 @ 5.5 | 3.25 @ 14.0 | ×2.6 | −0.035 |
 
+**Why one point per beam, and what the horizontal bars are.**  Each cell is
+drawn as one point per beam configuration rather than as a curve binned in
+laboratory momentum, because at fixed (*W*, *Q*) and fixed beam energies the
+lab momentum of the current system is not a free variable: the boost from the
+γ*p frame to the laboratory is set by (*W*, *Q*, *s*), so the hemisphere's lab
+momentum is fixed by kinematics and only the beam energies move it.  The spread
+that remains inside a cell, drawn as the horizontal bar spanning the 16th to
+84th percentile of |p|_lab for that beam, is about a factor of two and comes from
+the width of the (*W*, *Q*) bin itself, and for jets from how much of the current
+system the cone captured.  Slicing inside that bar would therefore slice in *W*
+and *Q* and in jet structure, not in frame, which is why the fine-pixel version
+of the flatness map was misleading (Sec. 2.4) and why the test compares medians
+across beams.
+
 The 5 × 41 points of the *W* = 22–28 row are excluded from the test: at
 √s = 28.6 GeV that cell sits against the kinematic limit, *y* = 0.6–0.8, and
 its ⟨n₉₀⟩ (2.39, 2.78, 3.46) is squeezed upward by phase space rather than
