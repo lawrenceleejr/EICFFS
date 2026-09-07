@@ -188,6 +188,20 @@ containing 90 % of its momentum having median 0.39 and reaching 0.76 in the
 highest *W* slice — the obstacle is that anti-kT selects and splits by
 laboratory p_T while the shower is organised in another frame.
 
+### 2.4 The same test as a picture
+
+`flatness_map_fixed_q.pdf` shows the test as tiles.  Rows are 2 GeV slices of
+*W* at *Q* = 3.3–5 GeV; in each row there is one tile per beam configuration,
+spanning the interquartile range of the leading *R* = 1.2 lab jet's momentum
+in that configuration, coloured by ⟨n_SD⟩ in the standard form.  A
+frame-independent observable makes every row one colour, and the rows are.
+`flatness_map_fixed_w.pdf` repeats this with rows of *Q* at *W* = 15–22 GeV:
+the colour changes from row to row, because *Q* sets the hard scale, and not
+along a row.  `flatness_map_inclusive.pdf` is the control: one strip per beam
+with no (*W*, *Q*) selection, and the colour drifts along every strip.  The
+same three beams, the same jets and the same observable; only the bookkeeping
+differs.
+
 ---
 
 ## 3. What the effect looks like with no control at all

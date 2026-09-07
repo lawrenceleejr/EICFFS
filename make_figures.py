@@ -35,6 +35,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.transforms as mtransforms
 from matplotlib import colors as mcolors
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -71,7 +72,8 @@ def e_label(lo, hi):
     return rf"$E_{{\rm cm}}$ = {lo:g}$-${hi:g} GeV"
 INK = "#1f1f1f"
 CAPTIONS = False               # explanatory text lives in the note and the page, not in the image
-GREY_LINE = "#9a9a9a"          # inclusive, no-control profiles: thin and quiet
+GREY_LINE = "#5a5a5a"          # inclusive, no-control profiles: thin, dark and quiet
+BEAM_MARKERS = {"5x41": "o", "10x100": "s", "18x275": "^"}   # marker shape encodes the beam configuration
 MUTED = "#8a8a8a"
 FAINT = "#d9d9d9"
 ACCENT = "#c44e52"
@@ -157,11 +159,14 @@ class EndLabels:
         if ok.any():
             self.items.append((np.asarray(x)[ok][-1], np.asarray(y)[ok][-1], text, color))
 
-    def draw(self, column=False):
+    def draw(self, column=False, dogleg=False, x_col_pt=None):
         """
         Place the labels.  With ``column=True`` every label sits in one column just
         right of the right-most line end, joined to its own line end by a faint
-        leader, so no label can lie across another line's data.
+        leader, so no label can lie across another line's data.  ``dogleg`` draws
+        the leader dotted, as a short diagonal from the line end followed by a
+        horizontal run into the label.  ``x_col_pt`` fixes the column, in points
+        from the axes' right edge.
         """
         if not self.items:
             return
@@ -176,15 +181,27 @@ class EndLabels:
             target[i] = max(target[i], target[i - 1] + self.min_sep)
         shift = 0.5 * (target[-1] - disp_y[order][-1])  # recentre the stack
         target -= shift * (len(target) > 1)
-        x_col = disp_x.max() + 10.0
+        if x_col_pt is not None:
+            right = self.ax.transAxes.transform((1.0, 0.0))[0] * 72.0 / fig.dpi
+            x_col = right + x_col_pt
+        else:
+            x_col = disp_x.max() + 10.0
         for k, idx in enumerate(order):
             x, y, text, color = self.items[idx]
             dy = target[k] - disp_y[idx]
             if column:
                 dx = x_col - disp_x[idx]
-                self.ax.annotate("", (x, y), xytext=(dx - 3.0, dy), textcoords="offset points",
-                                 arrowprops=dict(arrowstyle="-", color=FAINT, lw=0.6,
-                                                 shrinkA=0, shrinkB=0))
+                if dogleg:
+                    ang = 45 if dy > 0.5 else (-45 if dy < -0.5 else 0)
+                    style = f"angle,angleA={ang},angleB=180,rad=0" if ang else "arc3,rad=0"
+                    self.ax.annotate("", (x, y), xytext=(dx - 3.0, dy), textcoords="offset points",
+                                     arrowprops=dict(arrowstyle="-", color=MUTED, lw=0.5,
+                                                     ls=(0, (1.0, 2.2)), shrinkA=0, shrinkB=0,
+                                                     connectionstyle=style))
+                else:
+                    self.ax.annotate("", (x, y), xytext=(dx - 3.0, dy), textcoords="offset points",
+                                     arrowprops=dict(arrowstyle="-", color=FAINT, lw=0.6,
+                                                     shrinkA=0, shrinkB=0))
                 self.ax.annotate(text, (x, y), xytext=(dx, dy), textcoords="offset points",
                                  va="center", ha="left", fontsize=self.fs, color=color)
             else:
@@ -204,12 +221,13 @@ def inclusive_curves(ax, beams, key, obs, text_fmt, edges=P_INCL):
     labels = EndLabels(ax, min_sep_pt=9.0, fontsize=7)
     slopes, curves = {}, []
     for lab, d in beams:
-        xc, mu, se = profile(d[key], d[obs], edges, min_entries=200)
+        xc, mu, se = profile(d[key], d[obs], edges, min_entries=600)
         ok = np.isfinite(mu)
         if ok.sum() < 2:
             continue
-        ax.plot(xc[ok], mu[ok], color=GREY_LINE, lw=0.7, zorder=0, solid_capstyle="round")
-        labels.add(xc[ok][-1], mu[ok][-1], text_fmt.format(lab.replace("x", r"$\times$")), MUTED)
+        ax.plot(xc[ok], mu[ok], color=GREY_LINE, lw=0.5, zorder=0, solid_capstyle="round",
+                solid_joinstyle="round")
+        labels.add(xc[ok][-1], mu[ok][-1], text_fmt.format(lab.replace("x", r"$\times$")), GREY_LINE)
         slopes[lab] = float(np.polyfit(np.log(xc[ok]), np.log(mu[ok]), 1)[0])
         curves.append((xc[ok], mu[ok]))
     return labels, slopes, curves
@@ -275,6 +293,129 @@ def w_key(ax, cells, colors, y=1.03, symbol="W"):
         return draw
     _key_row(ax, y, [(swatch(i), rf"${symbol}$ = {lo:g}$-${hi:g} GeV" if i == 0 else rf"{lo:g}$-${hi:g}", MUTED)
                      for i, (lo, hi) in enumerate(cells)])
+
+
+def _swatch(ax, x_pt, y_pt, length_pt, **kw):
+    """A short horizontal line outside the axes, positioned in points from the axes' lower-right corner."""
+    import matplotlib.lines as mlines
+    fig = ax.figure
+    bb = ax.get_window_extent()
+    frac = (length_pt * fig.dpi / 72.0) / bb.width
+    ln = mlines.Line2D([1.0, 1.0 + frac], [0.0, 0.0], clip_on=False,
+                       transform=mtransforms.offset_copy(ax.transAxes, fig=fig, x=x_pt, y=y_pt, units="points"),
+                       **kw)
+    ax.add_line(ln)
+    return ln
+
+
+def right_legend(ax, cells, colors, symbol="W", beams=("5x41", "10x100", "18x275"),
+                 x_pt=10.0, y0=0.0, fontsize=7, q_styles=False):
+    """
+    A compact legend outside the axes on the right: colour swatches for the W (or
+    E_cm) bins and marker shapes for the beam configurations, stacked upward from
+    the bottom of the axes so the data keep the centre of the figure.
+    """
+    fig = ax.figure
+    line_pt = 11.0
+    y = y0
+    def put(draw_symbol, text, color=MUTED):
+        nonlocal y
+        draw_symbol(y)
+        ax.annotate(text, (1.0, 0.0), xytext=(x_pt + 16, y), textcoords="offset points",
+                    xycoords="axes fraction", va="center", ha="left", fontsize=fontsize, color=color)
+        y += line_pt
+    entries = []
+    if q_styles:
+        for iq in reversed(range(len(BEAM_CELLS_Q))):
+            qlo, qhi = BEAM_CELLS_Q[iq]
+            entries.append((lambda yy, ls=Q_STYLES[iq]: _swatch(ax, x_pt, yy, 12.0, color=INK, lw=1.0, ls=ls),
+                            rf"$Q$ = {qlo:g}$-${qhi:g} GeV"))
+    for lab in reversed(list(beams)):
+        mk = BEAM_MARKERS.get(lab, "o")
+        entries.append((lambda yy, mk=mk: ax.plot([1.0], [0.0], ls="none", marker=mk, ms=3.6, color=INK,
+                                                  mec="white", mew=0.45, clip_on=False, zorder=5,
+                                                  transform=mtransforms.offset_copy(
+                                                      ax.transAxes, fig=fig, x=x_pt + 6, y=yy, units="points")),
+                        lab.replace("x", r"$\times$")))
+    for i in reversed(range(len(cells))):
+        lo, hi = cells[i]
+        entries.append((lambda yy, c=colors[i]: _swatch(ax, x_pt, yy, 12.0, color=c, lw=1.8),
+                        rf"${symbol}$ = {lo:g}$-${hi:g} GeV"))
+    # headers drawn last so they sit above their groups
+    n_q = len(BEAM_CELLS_Q) if q_styles else 0
+    n_beam = len(beams)
+    for k, (draw_symbol, text) in enumerate(entries):
+        put(draw_symbol, text, color=INK if k < n_q + n_beam else MUTED)
+        if q_styles and k == n_q - 1:
+            ax.annotate("$Q$ bins (line style)", (1.0, 0.0), xytext=(x_pt, y), textcoords="offset points",
+                        xycoords="axes fraction", va="center", ha="left", fontsize=fontsize,
+                        color=MUTED, style="italic")
+            y += line_pt * 1.3
+        if k == n_q + n_beam - 1:
+            ax.annotate("Beams", (1.0, 0.0), xytext=(x_pt, y), textcoords="offset points",
+                        xycoords="axes fraction", va="center", ha="left", fontsize=fontsize,
+                        color=MUTED, style="italic")
+            y += line_pt * 1.3
+    ax.annotate(f"${symbol}$ bins" if symbol != "W" else "$W$ bins", (1.0, 0.0), xytext=(x_pt, y),
+                textcoords="offset points", xycoords="axes fraction", va="center", ha="left",
+                fontsize=fontsize, color=MUTED, style="italic")
+
+
+def q_cluster_labels(ax, rows, obstacles_curves=(), fontsize=7):
+    """
+    Name each Q bin next to its cluster of W lines.  Candidate positions are tried
+    at both ends of the cluster, above and below, and the one meeting the fewest
+    line samples and texts wins.  Text gets a white halo so it stays legible.
+    """
+    import matplotlib.patheffects as pe
+    fig = ax.figure
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    # line samples of everything drawn, in display coordinates
+    segs = []
+    for r in rows:
+        xs = np.array([p[0] for p in r[3]]); ys = np.array([p[1] for p in r[3]])
+        for i in range(len(xs) - 1):
+            t = np.linspace(0, 1, 14)
+            segs.append(np.column_stack([xs[i] + t * (xs[i + 1] - xs[i]), ys[i] + t * (ys[i + 1] - ys[i])]))
+    for ex, ey in obstacles_curves:
+        for i in range(len(ex) - 1):
+            t = np.linspace(0, 1, 14)
+            segs.append(np.column_stack([ex[i] + t * (ex[i + 1] - ex[i]), ey[i] + t * (ey[i + 1] - ey[i])]))
+    disp = ax.transData.transform(np.vstack(segs)) if segs else np.zeros((0, 2))
+    obstacles = [t.get_window_extent(rend) for t in ax.texts if t.get_text()]
+    by_q = {}
+    for name, iw, iq, pts in rows:
+        by_q.setdefault(iq, []).extend(pts)
+    for iq, pts in sorted(by_q.items()):
+        qlo, qhi = BEAM_CELLS_Q[iq]
+        txt = rf"$Q$ = {qlo:g}$-${qhi:g} GeV"
+        xs = np.array([p[0] for p in pts]); ys = np.array([p[1] for p in pts])
+        i_l, i_r = int(np.argmin(xs)), int(np.argmax(xs))
+        cands = [(xs[i_l], ys[i_l], -8, 8, "left", "bottom"),   # above the left end
+                 (xs[i_l], ys[i_l], -8, -8, "left", "top"),     # below the left end
+                 (xs[i_r], ys[i_r], 6, 6, "left", "bottom"),    # above-right of the right end
+                 (xs[i_r], ys[i_r], 6, -6, "left", "top"),      # below-right of the right end
+                 (xs[i_l], ys.max(), 0, 9, "left", "bottom"),   # above the cluster's top
+                 (xs[i_l], ys.min(), 0, -9, "left", "top")]     # below the cluster's bottom
+        best, best_n = None, None
+        for x, y, dx, dy, ha, va in cands:
+            a = ax.annotate(txt, (x, y), xytext=(dx, dy), textcoords="offset points", ha=ha, va=va,
+                            fontsize=fontsize, color=INK)
+            bb = a.get_window_extent(rend).expanded(1.1, 1.25)
+            n = int(((disp[:, 0] >= bb.x0) & (disp[:, 0] <= bb.x1) &
+                     (disp[:, 1] >= bb.y0) & (disp[:, 1] <= bb.y1)).sum()) if len(disp) else 0
+            n += 60 * sum(bb.overlaps(o) for o in obstacles)
+            ax_bb = ax.get_window_extent(rend)
+            n += 60 * (bb.x1 > ax_bb.x1 + 2 or bb.x0 < ax_bb.x0 - 2 or bb.y1 > ax_bb.y1 + 2)
+            a.remove()
+            if best_n is None or n < best_n:
+                best, best_n = (x, y, dx, dy, ha, va), n
+        x, y, dx, dy, ha, va = best
+        a = ax.annotate(txt, (x, y), xytext=(dx, dy), textcoords="offset points", ha=ha, va=va,
+                        fontsize=fontsize, color=INK, zorder=6)
+        a.set_path_effects([pe.withStroke(linewidth=2.2, foreground="white")])
+        obstacles.append(a.get_window_extent(rend))
 
 
 def clearest_row(rows):
@@ -949,6 +1090,7 @@ def fig_hemisphere_p_vs_q(trees, outdir):
 BEAM_CELLS_W = [(10, 15), (15, 22), (22, 28)]
 BEAM_CELLS_Q = [(2.2, 3.3), (3.3, 5.0), (5.0, 7.5)]
 Q_MARKERS = {0: "o", 1: "s", 2: "^"}
+Q_STYLES = {0: "-", 1: (0, (4, 2)), 2: (0, (1.2, 1.6))}      # solid, dashed, dotted
 BEAM_MIN = 400
 
 
@@ -1022,7 +1164,7 @@ def _blend(c1, c2):
     return tuple(0.5 * (a + b))
 
 
-def _draw_beam_rows(ax, rows, colors, ribbon=False):
+def _draw_beam_rows(ax, rows, colors, ribbon=False, q_styles=False):
     """
     One errorbar line per (W or E_cm, Q) cell.  With ``ribbon`` the lines of one
     Q bin are joined into a surface: for each beam-to-beam step, the quadrilateral
@@ -1049,9 +1191,12 @@ def _draw_beam_rows(ax, rows, colors, ribbon=False):
     for name, iw, iq, pts in rows:
         xs = np.array([p[0] for p in pts]); ys = np.array([p[1] for p in pts]); es = np.array([p[2] for p in pts])
         col = colors[iw]
-        marker_shadow(ax, xs, ys, Q_MARKERS[iq], 3.5)
-        ax.errorbar(xs, ys, yerr=es, color=col, lw=1.1, elinewidth=0.6, capsize=0,
-                    marker=Q_MARKERS[iq], ms=3.5, mec="white", mew=0.4, zorder=3)
+        ax.errorbar(xs, ys, yerr=es, color=col, lw=1.1, elinewidth=0.6, capsize=0, zorder=3,
+                    ls=Q_STYLES[iq] if q_styles else "-")
+        for x, y, e, lab in pts:                      # marker shape encodes the beam configuration
+            mk = BEAM_MARKERS.get(lab, "o")
+            marker_shadow(ax, [x], [y], mk, 3.6)
+            ax.plot([x], [y], ls="none", marker=mk, ms=3.6, color=col, mec="white", mew=0.45, zorder=4)
         if not ribbon:
             labels.add(xs, ys, name, col)
         allx.append(xs); ally.append(ys)
@@ -1059,10 +1204,14 @@ def _draw_beam_rows(ax, rows, colors, ribbon=False):
     return labels, np.concatenate(allx), np.concatenate(ally), flat
 
 
-def _beam_panel(ax, rows, colors, beams, obs, incl_fmt, inclusive_path, ribbon=True):
+def _beam_panel(ax, rows, colors, beams, obs, incl_fmt, inclusive_path, ribbon=True,
+                q_styles=False, inclusive=True):
     """Shared drawing for one beam-energy panel; returns (flat slopes, inclusive slope of the reference beam)."""
-    labels_rows, allx, ally, flat = _draw_beam_rows(ax, rows, colors, ribbon=ribbon)
-    labels_inc, slopes, curves = inclusive_curves(ax, beams, "plab", obs, incl_fmt)
+    labels_rows, allx, ally, flat = _draw_beam_rows(ax, rows, colors, ribbon=ribbon, q_styles=q_styles)
+    if inclusive:
+        labels_inc, slopes, curves = inclusive_curves(ax, beams, "plab", obs, incl_fmt)
+    else:
+        labels_inc, slopes, curves = EndLabels(ax), {}, []
     return labels_inc, slopes.get(inclusive_path, np.nan), curves, allx, ally, flat
 
 
@@ -1075,7 +1224,7 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     results = {}
 
     def finish(ax, labels_inc, curves, rows, ticks, xlim, ybottom=None, cells=BEAM_CELLS_W,
-               colors=W3_COLORS, symbol="W"):
+               colors=W3_COLORS, symbol="W", q_labels=True, q_styles=False):
         ax.set_xscale("log")
         ax.set_xticks(ticks); ax.set_xticklabels([str(t) for t in ticks])
         ax.minorticks_off()
@@ -1083,10 +1232,11 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         range_frame(ax, allx, ally)
         if ybottom is not None:
             ax.set_ylim(bottom=ybottom)
-        labels_inc.draw(column=True)
-        q_key(ax, y=1.09)
-        w_key(ax, cells, colors, y=1.03, symbol=symbol)
-        beam_marks_auto(ax, rows, extra_curves=curves)
+        labels_inc.draw(column=True, dogleg=True, x_col_pt=26.0)
+        right_legend(ax, cells, colors, symbol=symbol, beams=[l for l, _ in beam_paths],
+                     q_styles=q_styles)
+        if q_labels:
+            q_cluster_labels(ax, rows, obstacles_curves=curves)
 
     # -- whole current hemisphere ------------------------------------------
     beams = [(lab, _load_tree(p, "hemisphere", ["W", "Q2", "plab", "n90"],
@@ -1159,11 +1309,11 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
         # no ribbons here: the E_cm cells are different objects, not one system under boosts
         labels_inc, incl_c, curves, allx, ally, flat = _beam_panel(
             ax, rows, E_COLORS, beams_c, "n90", r"All $\gamma^*p$-Frame Jets, {}", inclusive_path,
-            ribbon=False)
+            ribbon=False, q_styles=True, inclusive=False)
         ax.set_xlabel(r"$\gamma^*p$-Frame Jet $|\vec p|_{\rm lab}$  [GeV]")
         ax.set_ylabel(r"$\langle n_{90}\rangle$")
         finish(ax, labels_inc, curves, rows, [1, 2, 5, 10, 20, 50], (0.9, 200),
-               cells=E_SLICES, colors=E_COLORS, symbol="E_{\\rm cm}")
+               cells=E_SLICES, colors=E_COLORS, symbol="E_{\\rm cm}", q_labels=False, q_styles=True)
         med_c = float(np.median(flat))
         caption(ax, f"$\\gamma^*p$-frame jets: median slope {med_c:+.2f}, against {incl_c:+.2f} "
                     "for the inclusive curve.")
@@ -1194,6 +1344,149 @@ def _cell_slopes(beams, kvar, key_cells, obs, xkey="plab", min_n=BEAM_MIN):
             if len(xs) >= 2 and min(ys) > 0:
                 out.append(np.polyfit(np.log(xs), np.log(ys), 1)[0])
     return out
+
+
+# ---------------------------------------------------------------------------
+# Flatness maps: <n_SD> over (lab momentum, W) with and without control of Q
+# ---------------------------------------------------------------------------
+
+MAP_CMAP = mcolors.LinearSegmentedColormap.from_list(
+    "eic_blue", ["#f4f8fc", "#c9dcee", "#8fb8dc", "#4f8ec4", "#2265a7", "#0d3f7a", "#061f45"])
+
+
+def _tile_rows(beams, obs, yedges, ykey, sel=None, min_n=300):
+    """
+    For each y row and each beam: interquartile range of the lab momentum and the
+    mean of obs.  A row of tiles at the same colour is a frame-independent cell.
+    """
+    tiles = []
+    for iy in range(len(yedges) - 1):
+        for lab, d in beams:
+            m = (d[ykey] >= yedges[iy]) & (d[ykey] < yedges[iy + 1])
+            if sel is not None:
+                m &= sel(d)
+            if m.sum() < min_n:
+                continue
+            p = d["plab"][m]
+            tiles.append((iy, lab, np.percentile(p, 25), np.percentile(p, 75), float(d[obs][m].mean()),
+                          int(m.sum())))
+    return tiles
+
+
+def _draw_tiles(ax, tiles, yedges, vmin, vmax, gap=0.12):
+    norm = mcolors.Normalize(vmin, vmax)
+    for iy, lab, x0, x1, val, n in tiles:
+        y0 = yedges[iy] + gap * (yedges[iy + 1] - yedges[iy]) / 2
+        h = (yedges[iy + 1] - yedges[iy]) * (1 - gap)
+        ax.add_patch(mpatches.Rectangle((x0, y0), x1 - x0, h, facecolor=MAP_CMAP(norm(val)),
+                                        edgecolor="white", linewidth=0.5, zorder=2))
+        mk = BEAM_MARKERS.get(lab, "o")
+        xc = np.sqrt(x0 * x1)
+        ax.plot([xc], [y0 + h / 2], ls="none", marker=mk, ms=3.0, color="white", alpha=0.9,
+                mec="none", zorder=3)
+    return mcolors.Normalize(vmin, vmax)
+
+
+def _map_axes(ax, xedges, ylabel, yticks, yticklabels=None):
+    ax.set_xscale("log")
+    ax.set_xlim(xedges[0], xedges[-1])
+    ax.set_xticks([2, 5, 10, 20, 50, 100]); ax.set_xticklabels(["2", "5", "10", "20", "50", "100"])
+    ax.minorticks_off()
+    ax.set_yticks(yticks)
+    if yticklabels is not None:
+        ax.set_yticklabels(yticklabels)
+    for sp in ("top", "right", "left"):
+        ax.spines[sp].set_visible(False)
+    ax.spines["bottom"].set_color(FAINT)
+    ax.tick_params(length=0, pad=4)
+    ax.set_xlabel(r"Jet $|\vec p|_{\rm lab}$  [GeV]")
+    ax.set_ylabel(ylabel)
+
+
+def _tile_key(ax, beams, corner="upper right", fontsize=7):
+    """Marker-shape key for the beams, in an empty corner of a tile map."""
+    x0 = 0.985 if "right" in corner else 0.015
+    ha = "right" if "right" in corner else "left"
+    y = 0.96 if "upper" in corner else 0.04 + 0.055 * (len(beams) - 1)
+    for lab in beams:
+        mk = BEAM_MARKERS.get(lab, "o")
+        ax.plot([x0 - (0.11 if ha == "right" else -0.012)], [y], ls="none", marker=mk, ms=3.2,
+                color=MUTED, mec="none", transform=ax.transAxes, clip_on=False)
+        ax.annotate(lab.replace("x", r"$\times$"), (x0 - (0.095 if ha == "right" else -0.03), y),
+                    xycoords="axes fraction", ha="left", va="center", fontsize=fontsize, color=MUTED)
+        y -= 0.055
+
+
+def _map_colorbar(fig, ax, norm, label):
+    import matplotlib.cm as cm
+    cax = ax.inset_axes([1.04, 0.0, 0.025, 1.0])
+    cb = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=MAP_CMAP), cax=cax)
+    cb.outline.set_visible(False)
+    cb.ax.tick_params(length=0, labelsize=8, pad=3)
+    cb.set_label(label, fontsize=9, labelpad=6)
+    return cb
+
+
+def fig_flatness_maps(beam_paths, outdir):
+    """
+    Colour maps of <n_SD> (standard form) for the leading R = 1.2 lab jet.
+      fixed Q:    rows of W; one tile per beam at that beam's lab-momentum range.
+                  A frame-independent observable gives every row one colour.
+      fixed W:    the same with rows of Q.
+      inclusive:  one strip per beam with no (W, Q) control: colour drifts along
+                  the strip, the no-control rise as a picture.
+    """
+    beams = [(l, _load_tree(p, "jets_R1p2", ["W", "Q2", "plab", "n_sd_pp", "lead", "current"],
+                            lambda d: d["lead"] & d["current"] & (d["n_sd_pp"] >= 0)))
+             for l, p in beam_paths]
+    for l, d in beams:
+        d["Q"] = np.sqrt(d["Q2"])
+    xedges = np.geomspace(2.0, 160.0, 14)
+    vmin, vmax = 1.7, 2.7
+    # ---- fixed Q: rows of W
+    wedges = np.arange(10.0, 28.01, 2.0)
+    tiles = _tile_rows(beams, "n_sd_pp", wedges, "W", sel=lambda d: (d["Q"] >= 3.3) & (d["Q"] < 5.0))
+    tiles = [t for t in tiles if not (t[1] == "5x41" and wedges[t[0]] >= 22)]   # squeezed cells
+    fig, ax = plt.subplots(figsize=(5.0, 3.6))
+    norm = _draw_tiles(ax, tiles, wedges, vmin, vmax)
+    _map_axes(ax, xedges, r"$W$  [GeV]", [10, 14, 18, 22, 26])
+    ax.set_ylim(wedges[0], wedges[-1])
+    _map_colorbar(fig, ax, norm, r"$\langle n_{\rm SD}\rangle$")
+    _tile_key(ax, [l for l, _ in beams], corner="upper right")
+    ax.set_title(r"Fixed $Q$ = 3.3$-$5 GeV, One Tile per Beam: Each Row Is One Colour",
+                 fontsize=8.5, loc="left", pad=8)
+    save(fig, outdir, "flatness_map_fixed_q")
+    # ---- fixed W: rows of Q
+    qedges = np.geomspace(2.2, 7.5, 8)
+    tiles = _tile_rows(beams, "n_sd_pp", qedges, "Q", sel=lambda d: (d["W"] >= 15) & (d["W"] < 22))
+    fig, ax = plt.subplots(figsize=(5.0, 3.6))
+    norm = _draw_tiles(ax, tiles, qedges, vmin, vmax)
+    _map_axes(ax, xedges, r"$Q$  [GeV]", [2.5, 3, 4, 5, 6, 7], ["2.5", "3", "4", "5", "6", "7"])
+    ax.set_yscale("log"); ax.set_ylim(qedges[0], qedges[-1]); ax.minorticks_off()
+    _map_colorbar(fig, ax, norm, r"$\langle n_{\rm SD}\rangle$")
+    _tile_key(ax, [l for l, _ in beams], corner="lower right")
+    ax.set_title(r"Fixed $W$ = 15$-$22 GeV, One Tile per Beam: Each Row Is One Colour",
+                 fontsize=8.5, loc="left", pad=8)
+    save(fig, outdir, "flatness_map_fixed_w")
+    # ---- inclusive: one strip per beam, no control
+    fig, ax = plt.subplots(figsize=(5.0, 2.6))
+    norm = mcolors.Normalize(vmin, vmax)
+    labs = [l for l, _ in beams]
+    for k, (lab, d) in enumerate(beams):
+        idx = np.digitize(d["plab"], xedges) - 1
+        for ix in range(len(xedges) - 1):
+            m = idx == ix
+            if m.sum() < 600:
+                continue
+            val = d["n_sd_pp"][m].mean()
+            ax.add_patch(mpatches.Rectangle((xedges[ix], k + 0.08), xedges[ix + 1] - xedges[ix], 0.84,
+                                            facecolor=MAP_CMAP(norm(val)), edgecolor="white", linewidth=0.5))
+    _map_axes(ax, xedges, "", np.arange(len(labs)) + 0.5, [l.replace("x", r"$\times$") for l in labs])
+    ax.set_ylim(0, len(labs))
+    _map_colorbar(fig, ax, norm, r"$\langle n_{\rm SD}\rangle$")
+    ax.set_title(r"No $(W, Q)$ Control, All Jets: Colour Drifts Along Every Strip",
+                 fontsize=8.5, loc="left", pad=8)
+    save(fig, outdir, "flatness_map_inclusive")
 
 
 def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
@@ -1889,6 +2182,7 @@ def main():
         fig_beam_sd(beam_paths, args.outdir)
         byR = fig_ladder_vs_radius(beam_paths, args.outdir, incl)
         fig_frame_breakers(beam_paths, args.outdir, incl)
+        fig_flatness_maps(beam_paths, args.outdir)
         print("  ladder vs radius (n90): " + ", ".join(f"R={k}:{v:+.3f}" for k, v in byR.items()))
         print("  frame ladder: " + ", ".join(f"{k}={v:+.3f}" for k, v in ladder.items()))
         for k, v in res.items():
