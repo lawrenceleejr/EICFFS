@@ -275,7 +275,7 @@ def q_key(ax, y=1.03):
     """Explain the marker shapes that encode the Q bin, above the axes."""
     def marker(iq):
         def draw(x, y):
-            ax.plot([x + 0.006], [y], marker=Q_MARKERS[iq], ms=3.4, color=MUTED, mec="white",
+            ax.plot([x + 0.006], [y], marker=Q_MARKERS[iq], ms=3.4, color=MUTED, mec=INK,
                     mew=0.4, transform=ax.transAxes, clip_on=False)
             return 0.012
         return draw
@@ -333,7 +333,7 @@ def right_legend(ax, cells, colors, symbol="W", beams=("5x41", "10x100", "18x275
     for lab in reversed(list(beams)):
         mk = BEAM_MARKERS.get(lab, "o")
         entries.append((lambda yy, mk=mk: ax.plot([1.0], [0.0], ls="none", marker=mk, ms=3.6, color=INK,
-                                                  mec="white", mew=0.45, clip_on=False, zorder=5,
+                                                  mec=INK, mew=0.45, clip_on=False, zorder=5,
                                                   transform=mtransforms.offset_copy(
                                                       ax.transAxes, fig=fig, x=x_pt + 6, y=yy, units="points")),
                         lab.replace("x", r"$\times$")))
@@ -582,7 +582,7 @@ def fig_fan(jets, outdir, obs="n90", name="ffs_fan",
         xc, mu, se = profile(jets["plab"][m], jets[obs][m], P_EDGES)
         ok = np.isfinite(mu)
         ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=col, lw=1.2, elinewidth=0.6,
-                    capsize=0, marker="o", ms=3, mec="white", mew=0.4)
+                    capsize=0, marker="o", ms=3, mec=INK, mew=0.4)
         labels.add(xc[ok], mu[ok], w_label(lo, hi), col)
         allx.append(xc[ok]); ally.append(mu[ok])
     allx, ally = np.concatenate(allx), np.concatenate(ally)
@@ -620,7 +620,7 @@ def fig_collapse(jets, outdir, obs="n90", name="ffs_collapse",
         xc, mu, se = profile(jets["p_hcm"][m], jets[obs][m], edges, min_entries=200)
         ok = np.isfinite(mu)
         ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=col, lw=1.2, elinewidth=0.6,
-                    capsize=0, marker="o", ms=3, mec="white", mew=0.4)
+                    capsize=0, marker="o", ms=3, mec=INK, mew=0.4)
         labels.add(xc[ok], mu[ok], w_label(lo, hi), col)
         allx.append(xc[ok]); ally.append(mu[ok])
     allx, ally = np.concatenate(allx), np.concatenate(ally)
@@ -660,7 +660,7 @@ def _flat_panel(ax, slice_var, x, y, slices, colors, edges, label_fn,
         if ok.sum() < 3:
             continue
         ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=col, lw=1.2, elinewidth=0.6,
-                    capsize=0, marker="o", ms=3, mec="white", mew=0.4)
+                    capsize=0, marker="o", ms=3, mec=INK, mew=0.4)
         drawn.append((xc[ok], mu[ok], label_fn(lo, hi), col))
         spreads[(lo, hi)] = 100 * (mu[ok].max() - mu[ok].min()) / mu[ok].mean()
         allx.append(xc[ok])
@@ -822,7 +822,7 @@ def fig_capture(trees, outdir):
         if ok.sum() < 3:
             continue
         ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=col, lw=1.2, elinewidth=0.6,
-                    capsize=0, marker="o", ms=3, mec="white", mew=0.4)
+                    capsize=0, marker="o", ms=3, mec=INK, mew=0.4)
         labels.add(xc[ok], mu[ok], rf"$R$ = {R}", col)
         allx.append(xc[ok]); ally.append(mu[ok])
     ax.axhline(1.0, color=FAINT, lw=0.8, zorder=0)
@@ -870,7 +870,7 @@ def _draw_fixed_q(profiles, ylabel, span, name, outdir, caption_text):
     allv = []
     for xc, mu, se, txt, col in profiles:
         ax.errorbar(xc, mu, yerr=se, color=col, lw=1.2, elinewidth=0.6, capsize=0,
-                    marker="o", ms=3, mec="white", mew=0.4)
+                    marker="o", ms=3, mec=INK, mew=0.4)
         labels.add(xc, mu, txt, col)
         allv.append(mu)
     allv = np.concatenate(allv)
@@ -933,8 +933,8 @@ def fig_slope_vs_radius(trees, outdir):
     X_HEMI = 3.6                                        # plotted beyond the radius scan
     ax.axhline(0.0, color=FAINT, lw=0.8, zorder=0)
     ax.errorbar(xs, ys, yerr=es, color=INK, lw=1.2, elinewidth=0.6, capsize=0,
-                marker="o", ms=4, mec="white", mew=0.5)
-    ax.plot([X_HEMI], [y_h], marker="D", ms=5, color=ACCENT, mec="white", mew=0.5)
+                marker="o", ms=4, mec=INK, mew=0.5)
+    ax.plot([X_HEMI], [y_h], marker="D", ms=5, color=ACCENT, mec=INK, mew=0.5)
     ax.annotate("whole current\nhemisphere", (X_HEMI, y_h), xytext=(0, -14),
                 textcoords="offset points", fontsize=7.5, color=ACCENT, ha="center", va="top")
     ax.annotate("flat", (0.42, 0.012), fontsize=7.5, color=MUTED, va="bottom")
@@ -974,7 +974,7 @@ def _hemi_lines(ax, d, mask, labels, allx, ally, annotate_q_for=(4, 6), min_entr
         if ok.sum() < 3:
             continue
         ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=col, lw=1.2, elinewidth=0.6,
-                    capsize=0, marker="o", ms=3, mec="white", mew=0.4)
+                    capsize=0, marker="o", ms=3, mec=INK, mew=0.4)
         labels.add(xc[ok], mu[ok], e_label(lo, hi), col)
         spreads.append(100 * (mu[ok].max() - mu[ok].min()) / mu[ok].mean())
         allx.append(xc[ok]); ally.append(mu[ok])
@@ -998,7 +998,7 @@ def fig_hemisphere_vs_p(trees, outdir):
     xc, mu, se = profile(d["plab"], d["n90"], P_HEMI, min_entries=200)
     ok = np.isfinite(mu)
     ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=INK, lw=1.8, elinewidth=0.6, capsize=0,
-                marker="o", ms=3.5, mec="white", mew=0.4, zorder=5)
+                marker="o", ms=3.5, mec=INK, mew=0.4, zorder=5)
     labels.add(xc[ok], mu[ok], "all hemispheres", INK)
     allx.append(xc[ok]); ally.append(mu[ok])
     ax.set_xscale("log")
@@ -1065,7 +1065,7 @@ def fig_hemisphere_p_vs_q(trees, outdir):
         if ok.sum() < 2:
             continue
         ax.fill_between(xc[ok], lo16[ok], hi84[ok], color=col, alpha=0.18, lw=0)
-        ax.plot(xc[ok], med[ok], color=col, lw=1.2, marker="o", ms=3, mec="white", mew=0.4)
+        ax.plot(xc[ok], med[ok], color=col, lw=1.2, marker="o", ms=3, mec=INK, mew=0.4)
         labels.add(xc[ok], med[ok], w_label(lo, hi), col)
         allx.append(xc[ok]); ally.append(med[ok])
     ax.set_xscale("log"); ax.set_yscale("log")
@@ -1205,7 +1205,7 @@ def _draw_beam_rows(ax, rows, colors, ribbon=False, q_styles=False):
                 ax.errorbar([x], [y], xerr=[[x - p[4]], [p[5] - x]], fmt="none", ecolor=col,
                             elinewidth=0.7, alpha=0.45, capsize=1.6, capthick=0.6, zorder=2.5)
             marker_shadow(ax, [x], [y], mk, 3.6)
-            ax.plot([x], [y], ls="none", marker=mk, ms=3.6, color=col, mec="white", mew=0.45, zorder=4)
+            ax.plot([x], [y], ls="none", marker=mk, ms=3.6, color=col, mec=INK, mew=0.45, zorder=4)
         if not ribbon:
             labels.add(xs, ys, name, col)
         allx.append(xs); ally.append(ys)
@@ -1549,7 +1549,7 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
                 sd0 = np.asarray(sd0, float)
                 m0 = np.median(sd0)
                 ax.plot([sd0.min(), sd0.max()], [y, y], color=SD, lw=1.0, alpha=0.35)
-                ax.plot([m0], [y], marker="s", ms=4.5, color=SD, mec="white", mew=0.6, zorder=3)
+                ax.plot([m0], [y], marker="s", ms=4.5, color=SD, mec=INK, mew=0.6, zorder=3)
                 ax.annotate(f"{m0:+.3f}", (m0, y), xytext=(7, 0), textcoords="offset points",
                             ha="left", va="center", fontsize=7, color=SD)
             continue
@@ -1558,7 +1558,7 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
             ax.plot([sl.min(), sl.max()], [y + 0.13, y + 0.13], color=col, lw=1.0, alpha=0.35,
                     solid_capstyle="butt")
         marker_shadow(ax, [med], [y + 0.13], "o", 5.5)
-        ax.plot([med], [y + 0.13], marker="o", ms=5.5, color=col, mec="white", mew=0.6, zorder=3)
+        ax.plot([med], [y + 0.13], marker="o", ms=5.5, color=col, mec=INK, mew=0.6, zorder=3)
         ax.annotate(f"{med:+.3f}".replace("+0.000", " 0.000"), (med, y + 0.13), xytext=(0, 7),
                     textcoords="offset points", ha="center", fontsize=7.5, color=col)
         sd = sd_by_name.get(name)
@@ -1568,7 +1568,7 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
             ax.plot([sd.min(), sd.max()], [y - 0.22, y - 0.22], color=SD, lw=1.0,
                     alpha=0.35, solid_capstyle="butt")
             marker_shadow(ax, [msd], [y - 0.22], "s", 4.5)
-            ax.plot([msd], [y - 0.22], marker="s", ms=4.5, color=SD, mec="white",
+            ax.plot([msd], [y - 0.22], marker="s", ms=4.5, color=SD, mec=INK,
                     mew=0.6, zorder=3)
             txt = f"{msd:+.3f}"
             ax.annotate(txt, (msd, y - 0.22), xytext=(7, 0),
@@ -1583,10 +1583,10 @@ def fig_frame_ladder(beam_paths, outdir, inclusive_slope):
     ax.set_xlim(-0.12, 0.36)
     ax.set_xticks([-0.1, 0.0, 0.1, 0.2, 0.3])
     range_frame(ax, np.array([-0.1, 0.3]), None)
-    ax.plot([0.20], [len(rungs) - 2.30], marker="o", ms=4.5, color=INK, mec="white", mew=0.5)
+    ax.plot([0.20], [len(rungs) - 2.30], marker="o", ms=4.5, color=INK, mec=INK, mew=0.5)
     ax.annotate(r"$n_{90}$", (0.20, len(rungs) - 2.30), xytext=(6, 0),
                 textcoords="offset points", fontsize=7.5, color=INK, va="center")
-    ax.plot([0.20], [len(rungs) - 2.60], marker="s", ms=4.0, color=SD, mec="white", mew=0.5)
+    ax.plot([0.20], [len(rungs) - 2.60], marker="s", ms=4.0, color=SD, mec=INK, mew=0.5)
     ax.annotate(r"$n_{\rm SD}$, Standard Form", (0.20, len(rungs) - 2.60), xytext=(6, 0),
                 textcoords="offset points", fontsize=7.5, color=SD, va="center")
     ax.annotate("Frame Independent", (0.0, len(rungs) - 0.45), xytext=(0, 0),
@@ -1693,9 +1693,9 @@ def fig_ladder_vs_radius(beam_paths, outdir, inclusive_slope=np.nan):
                 ls=(0, (4, 2)), zorder=0)
     ax.plot([xs[0] - 0.1, xs[-1]], [h90, h90], color="#2f6b4f", lw=0.9, ls=(0, (4, 2)), zorder=0)
     marker_shadow(ax, xs, y90, "o", 4.5); marker_shadow(ax, xs, ypp, "s", 4)
-    ax.plot(xs, y90, color=INK, lw=1.3, marker="o", ms=4.5, mec="white", mew=0.5, zorder=3)
-    ax.plot(xs, ypp, color=SD, lw=1.3, marker="s", ms=4, mec="white", mew=0.5, zorder=3)
-    ax.plot(xs, ysd, color=SD, lw=1.0, ls=(0, (2, 2)), marker="s", ms=3.5, mec="white", mew=0.5,
+    ax.plot(xs, y90, color=INK, lw=1.3, marker="o", ms=4.5, mec=INK, mew=0.5, zorder=3)
+    ax.plot(xs, ypp, color=SD, lw=1.3, marker="s", ms=4, mec=INK, mew=0.5, zorder=3)
+    ax.plot(xs, ysd, color=SD, lw=1.0, ls=(0, (2, 2)), marker="s", ms=3.5, mec=INK, mew=0.5,
             alpha=0.75)
     labels = EndLabels(ax, min_sep_pt=11.0, fontsize=7.5)
     labels.add(xs[-1], y90[-1], r"$n_{90}$, Lab Cone", INK)
@@ -1746,9 +1746,9 @@ def fig_beam_sd(beam_paths, outdir):
                 continue
             xs = np.array(xs)
             ax.plot(xs, yl, color="#7a4fa3", lw=1.0, marker=Q_MARKERS[iq], ms=3.2,
-                    mec="white", mew=0.4)
+                    mec=INK, mew=0.4)
             ax.plot(xs, yc, color="#2f6b4f", lw=1.0, marker=Q_MARKERS[iq], ms=3.2,
-                    mec="white", mew=0.4)
+                    mec=INK, mew=0.4)
             allx += [xs, xs]; ally += [np.array(yl), np.array(yc)]
     ax.annotate("computed in the colour frame", (allx[1][-1], ally[1][-1]), xytext=(7, 2),
                 textcoords="offset points", fontsize=7.5, color="#2f6b4f", va="center")
@@ -1801,8 +1801,8 @@ def fig_beam_ordering(beam_paths, outdir):
             for x, y1, y2, lab in zip(xs, yl, yc, labs_used):     # marker shape encodes the beam
                 mk = BEAM_MARKERS.get(lab, "o")
                 marker_shadow(ax, [x], [y1], mk, 3.2); marker_shadow(ax, [x], [y2], mk, 3.2)
-                ax.plot([x], [y1], ls="none", marker=mk, ms=3.2, color=INK, mec="white", mew=0.4, zorder=4)
-                ax.plot([x], [y2], ls="none", marker=mk, ms=3.2, color="#2f6b4f", mec="white", mew=0.4, zorder=4)
+                ax.plot([x], [y1], ls="none", marker=mk, ms=3.2, color=INK, mec=INK, mew=0.4, zorder=4)
+                ax.plot([x], [y2], ls="none", marker=mk, ms=3.2, color="#2f6b4f", mec=INK, mew=0.4, zorder=4)
             allx += [xs, xs]; ally += [np.array(yl), np.array(yc)]
     # one label per family, on the highest line
     top = max(range(len(ally)), key=lambda i: ally[i].max())
@@ -1820,7 +1820,7 @@ def fig_beam_ordering(beam_paths, outdir):
     ax.set_xlim(0.9, 260)
     range_frame(ax, np.concatenate(allx), np.concatenate(ally))
     for k, lab in enumerate(["18x275", "10x100", "5x41"]):
-        ax.plot([1.0], [0.0], ls="none", marker=BEAM_MARKERS[lab], ms=3.4, color=INK, mec="white", mew=0.4,
+        ax.plot([1.0], [0.0], ls="none", marker=BEAM_MARKERS[lab], ms=3.4, color=INK, mec=INK, mew=0.4,
                 clip_on=False, transform=mtransforms.offset_copy(ax.transAxes, fig=fig, x=16, y=11 * k, units="points"))
         ax.annotate(lab.replace("x", r"$\times$"), (1.0, 0.0), xytext=(26, 11 * k), textcoords="offset points",
                     xycoords="axes fraction", va="center", ha="left", fontsize=7, color=INK)
@@ -1853,7 +1853,7 @@ def fig_boost_factor(jets, outdir, obs="n90", name="ffs_boost_factor",
         xc, mu, se = profile(kappa[m], jets[obs][m], edges, min_entries=200)
         ok = np.isfinite(mu)
         ax.errorbar(xc[ok], mu[ok], yerr=se[ok], color=col, lw=1.2, elinewidth=0.6,
-                    capsize=0, marker="o", ms=3, mec="white", mew=0.4)
+                    capsize=0, marker="o", ms=3, mec=INK, mew=0.4)
         labels.add(xc[ok], mu[ok], w_label(lo, hi), col)
         allx.append(xc[ok]); ally.append(mu[ok])
     allx, ally = np.concatenate(allx), np.concatenate(ally)
@@ -1897,7 +1897,7 @@ def fig_ratio(jets, outdir, ref=0):
         re = r * np.sqrt((se / mu)**2 + (se_r / mu_r)**2)
         ok = np.isfinite(r)
         ax.errorbar(xc[ok], r[ok], yerr=re[ok], color=col, lw=1.2, elinewidth=0.6,
-                    capsize=0, marker="o", ms=3, mec="white", mew=0.4)
+                    capsize=0, marker="o", ms=3, mec=INK, mew=0.4)
         labels.add(xc[ok], r[ok], w_label(lo, hi), col)
         allx.append(xc[ok]); ally.append(r[ok])
     allx, ally = np.concatenate(allx), np.concatenate(ally)

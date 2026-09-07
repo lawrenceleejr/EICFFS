@@ -266,7 +266,7 @@ def main():
     ys = np.arange(len(rows))[::-1]
     for y, (name, sl, mean, col) in zip(ys, rows):
         ax.plot([sl.min(), sl.max()], [y, y], color=col, lw=1.0, alpha=0.35, solid_capstyle="butt")
-        ax.plot([np.median(sl)], [y], marker="o", ms=5, color=col, mec="white", mew=0.6, zorder=3)
+        ax.plot([np.median(sl)], [y], marker="o", ms=5, color=col, mec=INK, mew=0.6, zorder=3)
         ax.annotate(f"{np.median(sl):+.3f}", (np.median(sl), y), xytext=(0, 8),
                     textcoords="offset points", ha="center", fontsize=7.5, color=col)
     ax.set_yticks(ys)

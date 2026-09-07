@@ -127,12 +127,12 @@ def main():
     d = np.array(DELTAS)
     e = np.array(EPSILONS)
     rel = lambda vals, i, b: 100 * (np.array([v[i] for v in vals]) - b) / b
-    ax.plot(d, rel(coll, 0, base[0]), color=ACCENT, lw=1.3, marker="o", ms=4, mec="white", mew=0.5)
-    ax.plot(d, rel(coll, 1, base[1]), color=INK, lw=1.3, marker="o", ms=4, mec="white", mew=0.5)
+    ax.plot(d, rel(coll, 0, base[0]), color=ACCENT, lw=1.3, marker="o", ms=4, mec=INK, mew=0.5)
+    ax.plot(d, rel(coll, 1, base[1]), color=INK, lw=1.3, marker="o", ms=4, mec=INK, mew=0.5)
     ax.plot(e, rel(soft, 0, base[0]), color=ACCENT, lw=1.1, ls=(0, (3, 2)), marker="s", ms=3.5,
-            mec="white", mew=0.5)
+            mec=INK, mew=0.5)
     ax.plot(e, rel(soft, 1, base[1]), color=INK, lw=1.1, ls=(0, (3, 2)), marker="s", ms=3.5,
-            mec="white", mew=0.5)
+            mec=INK, mew=0.5)
     ax.annotate(r"$n_{90}$, Collinear Split", (d[-1], rel(coll, 0, base[0])[-1]),
                 xytext=(7, 0), textcoords="offset points", fontsize=8, color=ACCENT, va="center")
     ax.annotate(r"$n_{\rm SD}$, Collinear Split: Zero Below $\theta_{\rm cut}$",

@@ -146,7 +146,7 @@ def main():
     for y, (name, med, mx, nc, empty, kind, sl) in zip(ys, rows):
         c = cols[kind]
         ax.plot([sl.min(), sl.max()], [y, y], color=c, lw=1.0, alpha=0.35, solid_capstyle="butt")
-        ax.plot([med], [y], marker="o", ms=5, color=c, mec="white", mew=0.6, zorder=3)
+        ax.plot([med], [y], marker="o", ms=5, color=c, mec=INK, mew=0.6, zorder=3)
         ax.annotate(f"{med:+.3f}", (med, y), xytext=(0, 8), textcoords="offset points",
                     ha="center", fontsize=7.5, color=c)
         ax.annotate(f"{nc:.1f} particles", (0.30, y), xytext=(0, 0), textcoords="offset points",
