@@ -212,7 +212,7 @@ class EndLabels:
 P_INCL = np.array([1.0, 1.6, 2.5, 4.0, 6.3, 10.0, 16.0, 25.0, 40.0, 63.0, 100.0, 160.0])
 
 
-def inclusive_curves(ax, beams, key, obs, text_fmt, edges=P_INCL):
+def inclusive_curves(ax, beams, key, obs, text_fmt, edges=P_INCL, xmax=None):
     """
     The no-control profile of every beam configuration as a thin grey line.
     Returns (labels, slopes, curves): call ``labels.draw(column=True)`` once the
@@ -223,6 +223,8 @@ def inclusive_curves(ax, beams, key, obs, text_fmt, edges=P_INCL):
     for lab, d in beams:
         xc, mu, se = profile(d[key], d[obs], edges, min_entries=600)
         ok = np.isfinite(mu)
+        if xmax is not None:
+            ok &= xc <= xmax
         if ok.sum() < 2:
             continue
         ax.plot(xc[ok], mu[ok], color=GREY_LINE, lw=0.5, zorder=0, solid_capstyle="round",
@@ -359,6 +361,88 @@ def right_legend(ax, cells, colors, symbol="W", beams=("5x41", "10x100", "18x275
     ax.annotate(f"${symbol}$ bins" if symbol != "W" else "$W$ bins", (1.0, 0.0), xytext=(x_pt, y),
                 textcoords="offset points", xycoords="axes fraction", va="center", ha="left",
                 fontsize=fontsize, color=MUTED, style="italic")
+
+
+def _free_corner(ax, rows, curves, width_pt, height_pt):
+    """
+    Which corner of the axes has room for a block of the given size?  Counts
+    samples of the cell lines (with their momentum bars), the inclusive curves and
+    existing texts inside each candidate block; returns (x_right, y0) in axes
+    fraction for the block's lower-right anchor.
+    """
+    fig = ax.figure
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    bb = ax.get_window_extent()
+    pt = fig.dpi / 72.0
+    pts = []
+    for r in rows:
+        for p in r[3]:
+            xs = np.geomspace(p[4], p[5], 8) if len(p) >= 6 and p[4] > 0 else [p[0]]
+            pts += [(x, p[1]) for x in xs]
+        xr = np.array([p[0] for p in r[3]]); yr = np.array([p[1] for p in r[3]])
+        for i in range(len(xr) - 1):
+            t = np.linspace(0, 1, 10)
+            pts += list(zip(xr[i] + t * (xr[i + 1] - xr[i]), yr[i] + t * (yr[i + 1] - yr[i])))
+    for cx, cy in curves:
+        for i in range(len(cx) - 1):
+            t = np.linspace(0, 1, 10)
+            pts += list(zip(cx[i] + t * (cx[i + 1] - cx[i]), cy[i] + t * (cy[i + 1] - cy[i])))
+    disp = ax.transData.transform(np.array(pts)) if pts else np.zeros((0, 2))
+    texts = [t.get_window_extent(rend) for t in ax.texts if t.get_text()]
+    w, h = width_pt * pt, height_pt * pt
+    cands = {"lower right": (bb.x1 - 6 * pt - w, bb.y0 + 8 * pt),
+             "upper left": (bb.x0 + 8 * pt, bb.y1 - 6 * pt - h),
+             "lower left": (bb.x0 + 8 * pt, bb.y0 + 8 * pt),
+             "upper right": (bb.x1 - 6 * pt - w, bb.y1 - 6 * pt - h)}
+    best, best_n = None, None
+    for name, (x0, y0) in cands.items():
+        n = int(((disp[:, 0] >= x0 - 4) & (disp[:, 0] <= x0 + w + 4) &
+                 (disp[:, 1] >= y0 - 4) & (disp[:, 1] <= y0 + h + 4)).sum()) if len(disp) else 0
+        n += 40 * sum(not (t.x1 < x0 or t.x0 > x0 + w or t.y1 < y0 or t.y0 > y0 + h) for t in texts)
+        if best_n is None or n < best_n:
+            best, best_n = (x0, y0), n
+    x0, y0 = best
+    return ((x0 + w - bb.x0) / bb.width, (y0 - bb.y0) / bb.height)
+
+
+def inside_legend(ax, cells, colors, beams, symbol="W", fontsize=7, corner=None, rows=(), curves=()):
+    """
+    Compact key inside the axes: one column of colour swatches for the W bins,
+    one column of marker shapes for the beams, headers above, placed in whichever
+    corner is free of data.
+    """
+    fig = ax.figure
+    line_pt = 10.5
+    if corner is None:
+        n_rows = max(len(beams), len(cells))
+        corner = _free_corner(ax, rows, curves, width_pt=150.0, height_pt=line_pt * n_rows + 14.0)
+    x_right, y0 = corner
+    bb = ax.get_window_extent()
+    pt = fig.dpi / 72.0
+    def xf(dx_pt):                      # axes fraction of a point offset from the right anchor
+        return x_right + dx_pt * pt / bb.width
+    def yf(dy_pt):
+        return y0 + dy_pt * pt / bb.height
+    # beams column (right), W column (left)
+    x_beam_sym, x_beam_txt = xf(-48), xf(-40)
+    x_w_sym, x_w_txt = xf(-150), xf(-134)
+    n = max(len(beams), len(cells))
+    for k, lab in enumerate(reversed(list(beams))):
+        ax.plot([x_beam_sym], [yf(line_pt * k)], ls="none", marker=BEAM_MARKERS.get(lab, "o"), ms=3.4,
+                color=INK, mec=INK, mew=0.4, transform=ax.transAxes, clip_on=False, zorder=6)
+        ax.annotate(lab.replace("x", r"$\times$"), (x_beam_txt, yf(line_pt * k)), xycoords="axes fraction",
+                    va="center", ha="left", fontsize=fontsize, color=INK, zorder=6)
+    for k, i in enumerate(reversed(range(len(cells)))):
+        lo, hi = cells[i]
+        ax.plot([x_w_sym, xf(-138)], [yf(line_pt * k)] * 2, color=colors[i], lw=1.8, transform=ax.transAxes,
+                clip_on=False, solid_capstyle="butt", zorder=6)
+        ax.annotate(rf"{lo:g}$-${hi:g} GeV", (x_w_txt, yf(line_pt * k)), xycoords="axes fraction",
+                    va="center", ha="left", fontsize=fontsize, color=MUTED, zorder=6)
+    ax.annotate("Beams", (x_beam_sym - 0.004, yf(line_pt * n + 2)), xycoords="axes fraction", va="center",
+                ha="left", fontsize=fontsize, color=MUTED, style="italic", zorder=6)
+    ax.annotate(rf"${symbol}$ bins", (x_w_sym, yf(line_pt * n + 2)), xycoords="axes fraction", va="center",
+                ha="left", fontsize=fontsize, color=MUTED, style="italic", zorder=6)
 
 
 def q_cluster_labels(ax, rows, obstacles_curves=(), fontsize=7):
@@ -1218,7 +1302,7 @@ def _beam_panel(ax, rows, colors, beams, obs, incl_fmt, inclusive_path, ribbon=T
     """Shared drawing for one beam-energy panel; returns (flat slopes, inclusive slope of the reference beam)."""
     labels_rows, allx, ally, flat = _draw_beam_rows(ax, rows, colors, ribbon=ribbon, q_styles=q_styles)
     if inclusive:
-        labels_inc, slopes, curves = inclusive_curves(ax, beams, "plab", obs, incl_fmt)
+        labels_inc, slopes, curves = inclusive_curves(ax, beams, "plab", obs, incl_fmt, xmax=1.6 * allx.max())
     else:
         labels_inc, slopes, curves = EndLabels(ax), {}, []
     return labels_inc, slopes.get(inclusive_path, np.nan), curves, allx, ally, flat
@@ -1235,15 +1319,20 @@ def fig_beam_energy(beam_paths, outdir, inclusive_path=None):
     def finish(ax, labels_inc, curves, rows, ticks, xlim, ybottom=None, cells=BEAM_CELLS_W,
                colors=W3_COLORS, symbol="W", q_labels=True, q_styles=False):
         ax.set_xscale("log")
-        ax.set_xticks(ticks); ax.set_xticklabels([str(t) for t in ticks])
+        xmax_all = max([allx.max()] + [c[0].max() for c in curves]) if len(allx) else xlim[1]
+        hi = min(xlim[1], xmax_all * 1.12)
+        ax.set_xticks([t for t in ticks if t <= hi]); ax.set_xticklabels([str(t) for t in ticks if t <= hi])
         ax.minorticks_off()
-        ax.set_xlim(*xlim)
+        ax.set_xlim(xlim[0], hi)
         range_frame(ax, allx, ally)
         if ybottom is not None:
             ax.set_ylim(bottom=ybottom)
-        labels_inc.draw(column=True, dogleg=True, x_col_pt=26.0)
-        right_legend(ax, cells, colors, symbol=symbol, beams=[l for l, _ in beam_paths],
-                     q_styles=q_styles)
+        labels_inc.draw(column=True, dogleg=True, x_col_pt=14.0)
+        if len(cells) <= 3 and not q_styles:
+            inside_legend(ax, cells, colors, [l for l, _ in beam_paths], symbol=symbol, rows=rows, curves=curves)
+        else:
+            right_legend(ax, cells, colors, symbol=symbol, beams=[l for l, _ in beam_paths],
+                         q_styles=q_styles)
         if q_labels:
             q_cluster_labels(ax, rows, obstacles_curves=curves)
 
