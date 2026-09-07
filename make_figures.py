@@ -1452,7 +1452,9 @@ def fig_beam_ordering(beam_paths, outdir):
     for iq, (qlo, qhi) in enumerate(BEAM_CELLS_Q):
         for wlo, whi in BEAM_CELLS_W:
             xs, yl, yc = [], [], []
-            for _, d in hemi:
+            for label, d in hemi:
+                if (label, (wlo, whi)) in EXCLUDED_CELLS:
+                    continue
                 Q = np.sqrt(d["Q2"])
                 m = (d["W"] >= wlo) & (d["W"] < whi) & (Q >= qlo) & (Q < qhi)
                 if m.sum() < BEAM_MIN:
@@ -1460,7 +1462,7 @@ def fig_beam_ordering(beam_paths, outdir):
                     break
                 xs.append(np.median(d["plab"][m]))
                 yl.append(d["n90"][m].mean()); yc.append(d["n90_cm"][m].mean())
-            if not xs:
+            if len(xs) < 2:
                 continue
             xs = np.array(xs)
             ax.plot(xs, yl, color=INK, lw=1.0, marker=Q_MARKERS[iq], ms=3.2, mec="white", mew=0.4)
@@ -1481,12 +1483,14 @@ def fig_beam_ordering(beam_paths, outdir):
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
     ax.set_xlim(0.9, 260)
     range_frame(ax, np.concatenate(allx), np.concatenate(ally))
+    m_lab = float(np.median(_cell_slopes(hemi, "W", BEAM_CELLS_W, "n90")))
+    m_cm = float(np.median(_cell_slopes(hemi, "W", BEAM_CELLS_W, "n90_cm")))
     caption(ax, "The same hemispheres in fixed $(W, Q)$ cells across the three beam configurations, "
                 "with $n_{90}$ built from lab momenta (dark) and from colour-frame momenta (green).  "
                 "The particles are identical; only the frame in which they are ordered differs.  "
-                "Ordering in the lab leaves a residual slope of $-0.050$ because a large boost pushes "
+                f"Ordering in the lab leaves a residual slope of ${m_lab:+.3f}$ because a large boost pushes "
                 "the ordering towards light-cone momentum and concentrates the jet in fewer particles; "
-                "ordering in the colour frame leaves $-0.008$.")
+                f"ordering in the colour frame leaves ${m_cm:+.3f}$.")
     save(fig, outdir, "beam_energy_ordering")
 
 
