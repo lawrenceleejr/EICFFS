@@ -204,7 +204,7 @@ def draw_cells(beams, key, name, title, outdir, span, caption_text):
     ax.set_yticklabels([f"{t:g}" for t in yt])
     ax.minorticks_off()
     ax.set_xlim(0.9, 170)
-    ax.set_xlabel(r"$|\vec p|_{\rm lab}$ of the current hemisphere  [GeV]")
+    ax.set_xlabel(r"Current-Hemisphere $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_ylabel(r"$\langle n_{\rm SD}\rangle$")
     ax.set_title(title, fontsize=9, loc="left", pad=18)
     range_frame(ax, np.concatenate([r[4] for r in rows]), allv)
@@ -258,10 +258,10 @@ def main():
         print(f"{lab}: {len(beams[lab]['W']):,} events")
 
     variants = [
-        (r"$e^+e^-$ variables ($E$, $\theta$)" "\n" "in the laboratory", "lab_ee", BAD),
-        (r"$pp$ variables ($p_T$, $\Delta R$)" "\n" r"about the beam axis, in the lab", "beam_pp", INK),
-        (r"$pp$ variables ($p_T$, $\Delta R$)" "\n" r"about the $P+q$ axis, in the lab", "axis_pp", GOOD),
-        (r"$e^+e^-$ variables ($E$, $\theta$)" "\n" "in the object's rest frame", "rest_ee", GOOD),
+        (r"$e^+e^-$ Variables ($E$, $\theta$)" "\n" "in the Laboratory", "lab_ee", BAD),
+        (r"$pp$ Variables ($p_T$, $\Delta R$)" "\n" r"About the Beam Axis, in the Lab", "beam_pp", INK),
+        (r"$pp$ Variables ($p_T$, $\Delta R$)" "\n" r"About the $P+q$ Axis, in the Lab", "axis_pp", GOOD),
+        (r"$e^+e^-$ Variables ($E$, $\theta$)" "\n" "in the Object's Rest Frame", "rest_ee", GOOD),
     ]
     rows = []
     print(f"\n{'variant':<46}{'median':>9}{'|max|':>8}{'mean':>7}")
@@ -294,7 +294,7 @@ def main():
     ax.set_xlim(-0.62, 0.12)
     ax.set_xticks([-0.6, -0.4, -0.2, 0.0])
     ax.spines["bottom"].set_bounds(-0.6, 0.0)
-    ax.set_xlabel(r"lab-frame dependence,  $\mathrm{d}\ln\langle n_{\rm SD}\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
+    ax.set_xlabel(r"Lab-Frame Dependence,  $\mathrm{d}\ln\langle n_{\rm SD}\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
     if CAPTIONS:
         t = ax.text(0.0, -0.34,
                     "Soft drop is normally written with transverse-momentum fractions and a "
@@ -315,14 +315,14 @@ def main():
     v_ee = np.concatenate([r[5] for r in cell_lines(beams, "lab_ee")])
     span = 1.05 * np.sqrt(v_ee.max() / v_ee.min())
     draw_cells(beams, "lab_ee", "beam_energy_sd_ee",
-               r"$n_{\rm SD}$, $e^+e^-$ variables in the laboratory", args.outdir, span,
+               r"$n_{\rm SD}$, $e^+e^-$ Variables in the Laboratory", args.outdir, span,
                "Each line is one cell of fixed $(W, Q)$ measured at 5$\\times$41, 10$\\times$100 and "
                "18$\\times$275 GeV, so the colour-frame physics is identical along it and only the "
                "laboratory frame changes.  With an absolute opening-angle cut the observable collapses "
                "as the beams get harder: the hemisphere collimates below $\\theta_{\\rm cut}$ and its "
                "branchings stop being counted.  Median exponent $-0.474$.")
     draw_cells(beams, "beam_pp", "beam_energy_sd_standard",
-               r"$n_{\rm SD}$, standard $pp$ variables in the laboratory", args.outdir, span,
+               r"$n_{\rm SD}$, Standard $pp$ Variables in the Laboratory", args.outdir, span,
                "The same cells and the same laboratory measurement, with soft drop written the standard "
                "way: transverse-momentum fractions and a rapidity-azimuth distance.  Identical vertical "
                "span to the previous figure.  The lines are flat, median exponent $-0.016$: an IRC-safe "

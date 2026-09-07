@@ -45,12 +45,12 @@ MIN_ENTRIES = 200
 
 # (label, selector, colour key).  Selectors receive the per-beam arrays.
 DEFINITIONS = [
-    ("Breit current hemisphere", lambda s: s["cur_breit"], "base"),
-    ("  with lab $|\\vec p| > 0.5$ GeV", lambda s: s["cur_breit"] & (s["p"] > 0.5), "bad"),
-    ("  with lab $p_T > 0.15$ GeV", lambda s: s["cur_breit"] & (s["pt"] > 0.15), "base"),
-    ("$\\gamma^*p$ current region, $y^* > 0$", lambda s: s["ystar"] > 0, "good"),
-    ("  with lab $|\\vec p| > 0.5$ GeV", lambda s: (s["ystar"] > 0) & (s["p"] > 0.5), "bad"),
-    ("  with lab $p_T > 0.15$ GeV", lambda s: (s["ystar"] > 0) & (s["pt"] > 0.15), "good"),
+    ("Breit Current Hemisphere", lambda s: s["cur_breit"], "base"),
+    ("  with Lab $|\\vec p| > 0.5$ GeV", lambda s: s["cur_breit"] & (s["p"] > 0.5), "bad"),
+    ("  with Lab $p_T > 0.15$ GeV", lambda s: s["cur_breit"] & (s["pt"] > 0.15), "base"),
+    ("$\\gamma^*p$ Current Region, $y^* > 0$", lambda s: s["ystar"] > 0, "good"),
+    ("  with Lab $|\\vec p| > 0.5$ GeV", lambda s: (s["ystar"] > 0) & (s["p"] > 0.5), "bad"),
+    ("  with Lab $p_T > 0.15$ GeV", lambda s: (s["ystar"] > 0) & (s["pt"] > 0.15), "good"),
 ]
 
 
@@ -160,7 +160,7 @@ def main():
     ax.set_ylim(-0.6, len(rows) - 0.4)
     ax.set_xlim(-0.10, 0.42)
     ax.set_xticks([-0.1, 0.0, 0.1, 0.2])
-    ax.set_xlabel(r"lab-frame dependence,  $\mathrm{d}\ln\langle n_{90}\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
+    ax.set_xlabel(r"Lab-Frame Dependence,  $\mathrm{d}\ln\langle n_{90}\rangle\,/\,\mathrm{d}\ln|\vec p|_{\rm lab}$")
     ax.spines["bottom"].set_bounds(-0.1, 0.2)
     if CAPTIONS:
         t = ax.text(0.0, -0.30,
