@@ -184,16 +184,23 @@ def cell_lines(beams, key):
 
 
 def draw_cells(beams, key, name, title, outdir, span, caption_text):
-    """One panel: the cell lines across beam energies, log axes, fixed vertical span."""
-    rows = cell_lines(beams, key)
+    """
+    One panel: the cell lines across beam energies, log axes, fixed vertical span.
+    Same encoding as the main beam panels: marker = beam, colour = W, one labelled
+    sheet per Q bin, legend on the right.
+    """
+    import make_figures as mf
+    cells = cell_lines(beams, key)
+    beam_labels = list(beams.keys())
+    rows = []
+    for iw, iq, wlo, whi, xs, ys, es in cells:
+        pts = [(float(x), float(y), float(e), lab) for x, y, e, lab in zip(xs, ys, es, beam_labels)]
+        pts = [p for p in pts if (p[3], (wlo, whi)) not in mf.EXCLUDED_CELLS]
+        if len(pts) >= 2:
+            rows.append((rf"$W$ {wlo:g}$-${whi:g}, $Q$ {Q_CELLS[iq][0]:g}$-${Q_CELLS[iq][1]:g}", iw, iq, pts))
     fig, ax = plt.subplots(figsize=(4.8, 3.5))
-    allv = []
-    for iw, iq, wlo, whi, xs, ys, es in rows:
-        ax.errorbar(xs, ys, yerr=es, color=W_COLS[iw], lw=1.1, elinewidth=0.6, capsize=0,
-                    marker=Q_MARKERS[iq], ms=3.4, mec="white", mew=0.4)
-        allv.append(ys)
-    allv = np.concatenate(allv)
-    gm = np.sqrt(allv.min() * allv.max())
+    labels, allx, ally, flat = mf._draw_beam_rows(ax, rows, W_COLS, ribbon=True)
+    gm = np.sqrt(ally.min() * ally.max())
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_ylim(gm / span, gm * span)
@@ -206,34 +213,11 @@ def draw_cells(beams, key, name, title, outdir, span, caption_text):
     ax.set_xlim(0.9, 170)
     ax.set_xlabel(r"Current-Hemisphere $|\vec p|_{\rm lab}$  [GeV]")
     ax.set_ylabel(r"$\langle n_{\rm SD}\rangle$")
-    ax.set_title(title, fontsize=9, loc="left", pad=18)
-    range_frame(ax, np.concatenate([r[4] for r in rows]), allv)
-    # marker key for Q, and the beam configurations named under one cell
-    kx = 0.0
-    for iq, (qlo, qhi) in enumerate(Q_CELLS):
-        ax.plot([kx], [1.05], marker=Q_MARKERS[iq], ms=3.4, color=MUTED, mec="white", mew=0.4,
-                transform=ax.transAxes, clip_on=False)
-        ax.annotate(rf"$Q$ = {qlo:g}$-${qhi:g} GeV" if iq == 0 else rf"{qlo:g}$-${qhi:g}",
-                    (kx, 1.05), xytext=(6, 0), textcoords="offset points", xycoords="axes fraction",
-                    va="center", ha="left", fontsize=7, color=MUTED)
-        kx += 0.30 if iq == 0 else 0.17
-    # beam names go under the lowest line that stays in view (nothing beneath it)
-    in_view = [r for r in rows if r[5].min() > 1.3 * gm / span] or rows
-    pick = min(in_view, key=lambda r: np.mean(np.log(r[5])))
-    for x, y, lab in zip(pick[4], pick[5], beams.keys()):
-        ax.annotate(lab.replace("x", "$\\times$"), (x, y), xytext=(0, -12),
-                    textcoords="offset points", fontsize=6.5, color=MUTED, ha="center")
-    # one label per W family, on its right-most cell, in a leader-line column
-    from make_figures import CAPTIONS, EndLabels
-    best = {}
-    for iw, iq, wlo, whi, xs, ys, es in rows:
-        if iw not in best or xs[-1] > best[iw][0]:
-            best[iw] = (xs[-1], ys[-1], wlo, whi)
-    labels = EndLabels(ax, min_sep_pt=9.0, fontsize=7)
-    for iw, (x, y, wlo, whi) in best.items():
-        labels.add(x, y, rf"$W$ = {wlo}$-${whi} GeV", W_COLS[iw])
-    labels.draw(column=True)
-    if CAPTIONS:
+    ax.set_title(title, fontsize=9, loc="left", pad=8)
+    range_frame(ax, allx, ally)
+    mf.right_legend(ax, W_CELLS, W_COLS, symbol="W", beams=beam_labels)
+    mf.q_cluster_labels(ax, rows)
+    if mf.CAPTIONS:
         t = ax.text(0.0, -0.26, caption_text, transform=ax.transAxes, fontsize=7.5, color=MUTED,
                     va="top", ha="left", wrap=True)
         t._is_caption = True
