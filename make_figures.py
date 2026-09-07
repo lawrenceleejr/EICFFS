@@ -1772,7 +1772,7 @@ def fig_beam_ordering(beam_paths, outdir):
     allx, ally = [], []
     for iq, (qlo, qhi) in enumerate(BEAM_CELLS_Q):
         for wlo, whi in BEAM_CELLS_W:
-            xs, yl, yc = [], [], []
+            xs, yl, yc, labs_used = [], [], [], []
             for label, d in hemi:
                 if (label, (wlo, whi)) in EXCLUDED_CELLS:
                     continue
@@ -1781,14 +1781,19 @@ def fig_beam_ordering(beam_paths, outdir):
                 if m.sum() < BEAM_MIN:
                     xs = []
                     break
+                labs_used.append(label)
                 xs.append(np.median(d["plab"][m]))
                 yl.append(d["n90"][m].mean()); yc.append(d["n90_cm"][m].mean())
             if len(xs) < 2:
                 continue
             xs = np.array(xs)
-            marker_shadow(ax, xs, yl, Q_MARKERS[iq], 3.2); marker_shadow(ax, xs, yc, Q_MARKERS[iq], 3.2)
-            ax.plot(xs, yl, color=INK, lw=1.0, marker=Q_MARKERS[iq], ms=3.2, mec="white", mew=0.4, zorder=3)
-            ax.plot(xs, yc, color="#2f6b4f", lw=1.0, marker=Q_MARKERS[iq], ms=3.2, mec="white", mew=0.4, zorder=3)
+            ax.plot(xs, yl, color=INK, lw=1.0, zorder=3)
+            ax.plot(xs, yc, color="#2f6b4f", lw=1.0, zorder=3)
+            for x, y1, y2, lab in zip(xs, yl, yc, labs_used):     # marker shape encodes the beam
+                mk = BEAM_MARKERS.get(lab, "o")
+                marker_shadow(ax, [x], [y1], mk, 3.2); marker_shadow(ax, [x], [y2], mk, 3.2)
+                ax.plot([x], [y1], ls="none", marker=mk, ms=3.2, color=INK, mec="white", mew=0.4, zorder=4)
+                ax.plot([x], [y2], ls="none", marker=mk, ms=3.2, color="#2f6b4f", mec="white", mew=0.4, zorder=4)
             allx += [xs, xs]; ally += [np.array(yl), np.array(yc)]
     # one label per family, on the highest line
     top = max(range(len(ally)), key=lambda i: ally[i].max())
@@ -1805,6 +1810,13 @@ def fig_beam_ordering(beam_paths, outdir):
     ax.set_ylabel(r"$\langle n_{90}\rangle$")
     ax.set_xlim(0.9, 260)
     range_frame(ax, np.concatenate(allx), np.concatenate(ally))
+    for k, lab in enumerate(["18x275", "10x100", "5x41"]):
+        ax.plot([1.0], [0.0], ls="none", marker=BEAM_MARKERS[lab], ms=3.4, color=INK, mec="white", mew=0.4,
+                clip_on=False, transform=mtransforms.offset_copy(ax.transAxes, fig=fig, x=16, y=11 * k, units="points"))
+        ax.annotate(lab.replace("x", r"$\times$"), (1.0, 0.0), xytext=(26, 11 * k), textcoords="offset points",
+                    xycoords="axes fraction", va="center", ha="left", fontsize=7, color=INK)
+    ax.annotate("Beams", (1.0, 0.0), xytext=(10, 11 * 3 + 3), textcoords="offset points", xycoords="axes fraction",
+                va="center", ha="left", fontsize=7, color=MUTED, style="italic")
     m_lab = float(np.median(_cell_slopes(hemi, "W", BEAM_CELLS_W, "n90")))
     m_cm = float(np.median(_cell_slopes(hemi, "W", BEAM_CELLS_W, "n90_cm")))
     caption(ax, "The same hemispheres in fixed $(W, Q)$ cells across the three beam configurations, "
