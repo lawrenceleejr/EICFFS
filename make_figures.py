@@ -57,6 +57,9 @@ MIN_ENTRIES = 40
 W_COLORS = ["#9ecae1", "#6baed6", "#3182bd", "#08519c", "#08306b"]
 # Sequential ramp for the ordered variable E_cm (six steps, light = low energy)
 W3_COLORS = ["#6baed6", "#3182bd", "#08306b"]   # the three W cells of the beam test
+# (beam label, W cell) pairs dropped from the beam test: at 5x41 the W = 22-28 GeV
+# cell sits at y = 0.6-0.8 against W_max = sqrt(s) = 28.6 GeV, squeezed by kinematics.
+EXCLUDED_CELLS = {("5x41", (22, 28))}
 E_COLORS = ["#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"]
 E_SLICES = [(1.5, 2.5), (2.5, 4), (4, 6), (6, 9), (9, 14), (14, 22)]
 PCM_SLICES = [(2, 3.3), (3.3, 5), (5, 7.5), (7.5, 11), (11, 16), (16, 24)]
@@ -937,8 +940,11 @@ def _beam_cells(beams, xkey="plab", ecm_cells=False, obs="n90"):
     kvar = "e_hcm" if ecm_cells else "W"
     for iw, (wlo, whi) in enumerate(kcells):
         for iq, (qlo, qhi) in enumerate(BEAM_CELLS_Q):
-            pts = []
+            pts, used = [], 0
             for label, d in beams:
+                if not ecm_cells and (label, (wlo, whi)) in EXCLUDED_CELLS:
+                    continue
+                used += 1
                 Q = np.sqrt(d["Q2"])
                 m = (d[kvar] >= wlo) & (d[kvar] < whi) & (Q >= qlo) & (Q < qhi)
                 if m.sum() < BEAM_MIN:
@@ -946,7 +952,7 @@ def _beam_cells(beams, xkey="plab", ecm_cells=False, obs="n90"):
                     break
                 v = d[obs][m]
                 pts.append((np.median(d[xkey][m]), v.mean(), v.std(ddof=1) / np.sqrt(len(v)), label))
-            if len(pts) == len(beams):
+            if pts and len(pts) == used and used >= 2:
                 name = (rf"$E_{{\rm cm}}$ {wlo:g}$-${whi:g}, $Q$ {qlo:g}$-${qhi:g}" if ecm_cells
                         else rf"$W$ {wlo:g}$-${whi:g}, $Q$ {qlo:g}$-${qhi:g}")
                 rows.append((name, iw, iq, pts))
@@ -974,12 +980,12 @@ def _draw_beam_rows(ax, rows, colors, ribbon=False):
         for iq, lines in by_q.items():
             iws = sorted(lines)
             for a, b in zip(iws[:-1], iws[1:]):
-                pa, pb = lines[a], lines[b]
-                if len(pa) != len(pb):
-                    continue
-                for i in range(len(pa) - 1):
-                    poly = [(pa[i][0], pa[i][1]), (pa[i + 1][0], pa[i + 1][1]),
-                            (pb[i + 1][0], pb[i + 1][1]), (pb[i][0], pb[i][1])]
+                pa = {p[3]: p for p in lines[a]}
+                pb = {p[3]: p for p in lines[b]}
+                common = [lab for lab in [p[3] for p in lines[a]] if lab in pb]
+                for l1, l2 in zip(common[:-1], common[1:]):
+                    poly = [(pa[l1][0], pa[l1][1]), (pa[l2][0], pa[l2][1]),
+                            (pb[l2][0], pb[l2][1]), (pb[l1][0], pb[l1][1])]
                     ax.add_patch(mpatches.Polygon(poly, closed=True, facecolor=_blend(colors[a], colors[b]),
                                                   edgecolor="none", alpha=0.22, zorder=1))
     for name, iw, iq, pts in rows:
@@ -1151,14 +1157,16 @@ def _cell_slopes(beams, kvar, key_cells, obs, xkey="plab", min_n=BEAM_MIN):
     for klo, khi in key_cells:
         for qlo, qhi in BEAM_CELLS_Q:
             xs, ys = [], []
-            for _, d in beams:
+            for label, d in beams:
+                if kvar == "W" and (label, (klo, khi)) in EXCLUDED_CELLS:
+                    continue
                 Q = np.sqrt(d["Q2"])
                 m = (d[kvar] >= klo) & (d[kvar] < khi) & (Q >= qlo) & (Q < qhi)
                 if m.sum() < min_n:
                     xs = []
                     break
                 xs.append(np.median(d[xkey][m])); ys.append(d[obs][m].mean())
-            if xs and min(ys) > 0:
+            if len(xs) >= 2 and min(ys) > 0:
                 out.append(np.polyfit(np.log(xs), np.log(ys), 1)[0])
     return out
 

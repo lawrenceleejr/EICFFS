@@ -27,10 +27,10 @@ d ln⟨n₉₀⟩ / d ln|p|_lab across the three configurations:
 | what is measured | n₉₀ | n_SD, standard form |
 |---|---|---|
 | all hemispheres, one beam energy, no control | **+0.277** | non-monotonic |
-| leading anti-kT *R* = 1.2 lab jet, fixed (*W*, *Q*) | +0.011 | +0.007 |
-| whole current hemisphere, from lab momenta | −0.050 | −0.018 |
+| leading anti-kT *R* = 1.2 lab jet, fixed (*W*, *Q*) | +0.007 | +0.007 |
+| whole current hemisphere, from lab momenta | −0.044 | −0.018 |
 | γ*p-frame jet, from lab momenta | −0.001 | +0.016 |
-| whole current hemisphere, from colour-frame momenta | −0.008 | −0.007 |
+| whole current hemisphere, from colour-frame momenta | −0.011 | −0.012 |
 | γ*p-frame jet, from colour-frame momenta | +0.015 | +0.016 |
 
 n_SD is the iterated soft-drop multiplicity, an IRC-safe counting observable
@@ -54,8 +54,8 @@ none of it is a property of fragmentation.  `figures/frame_breakers.pdf` ranks
 the choices by the laboratory dependence they introduce on the same test: an
 opening-angle cut applied in the laboratory (−0.47), no (*W*, *Q*) control at
 all (+0.28), a laboratory momentum threshold on every particle (+0.25),
-ordering a wide object's constituents by laboratory momentum (−0.05), and a lab
-cone at *R* = 0.4 rather than the *R* ≈ 1 the EIC community uses (+0.04).  A
+ordering a wide object's constituents by laboratory momentum (−0.04), and a lab
+cone at *R* = 0.4 rather than the *R* ≈ 1 the EIC community uses (+0.02).  A
 transverse-momentum threshold, the boost-invariant version of the third,
 introduces +0.01.  All are quantified below.
 
@@ -121,17 +121,21 @@ either from laboratory momenta or from colour-frame momenta.
 | *W* 15–22, *Q* 2.2–3.3 | 2.15 @ 1.8 | 1.99 @ 2.1 | 1.87 @ 4.5 | ×2.6 | −0.126 |
 | *W* 15–22, *Q* 3.3–5 | 2.68 @ 2.5 | 2.58 @ 4.2 | 2.51 @ 10.7 | ×4.4 | −0.043 |
 | *W* 15–22, *Q* 5–7.5 | 3.40 @ 3.8 | 3.29 @ 9.0 | 3.25 @ 24.6 | ×6.5 | −0.023 |
-| *W* 22–28, *Q* 2.2–3.3 | 2.39 @ 2.3 | 2.05 @ 1.7 | 1.93 @ 2.7 | ×1.6 | −0.086 |
-| *W* 22–28, *Q* 3.3–5 | 2.78 @ 3.0 | 2.62 @ 2.8 | 2.52 @ 6.1 | ×2.2 | −0.088 |
-| *W* 22–28, *Q* 5–7.5 | 3.46 @ 3.6 | 3.36 @ 5.5 | 3.22 @ 14.0 | ×3.9 | −0.051 |
+| *W* 22–28, *Q* 2.2–3.3 | — | 2.05 @ 1.7 | 1.93 @ 2.7 | ×1.6 | −0.135 |
+| *W* 22–28, *Q* 3.3–5 | — | 2.62 @ 2.8 | 2.52 @ 6.1 | ×2.2 | −0.050 |
+| *W* 22–28, *Q* 5–7.5 | — | 3.36 @ 5.5 | 3.22 @ 14.0 | ×2.5 | −0.044 |
 
-Statistical errors on each ⟨n₉₀⟩ are 0.005–0.02.  The cell with the longest
+The 5 × 41 points of the *W* = 22–28 row are excluded from the test: at
+√s = 28.6 GeV that cell sits against the kinematic limit, *y* = 0.6–0.8, and
+its ⟨n₉₀⟩ (2.39, 2.78, 3.46) is squeezed upward by phase space rather than
+moved by the frame.  Statistical errors on each ⟨n₉₀⟩ are 0.005–0.02.  The cell with the longest
 lever, *W* = 10–15 and *Q* = 5–7.5, moves the hemisphere from 6.5 to 48.5 GeV of
 laboratory momentum and changes ⟨n₉₀⟩ by 0.02 out of 3.25.
 
 The residual is not an artefact of wide cells.  Reweighting each configuration
 to a common (*W*, *Q*) distribution on an 8 × 8 grid inside every cell moves the
-median exponent from −0.050 to −0.045.
+median exponent, with all nine cells and all three beams, only from −0.050 to
+−0.045.
 
 ### 2.2 The residual is the observable's ordering frame, not the physics
 
@@ -149,9 +153,9 @@ removes most of the residual (`beam_energy_ordering.pdf`):
 | *W* 10–15, *Q* 2.2–3.3 | −0.050 | −0.031 |
 | *W* 15–22, *Q* 2.2–3.3 | −0.126 | −0.073 |
 | *W* 15–22, *Q* 5–7.5 | −0.023 | −0.003 |
-| *W* 22–28, *Q* 2.2–3.3 | −0.086 | −0.006 |
-| *W* 22–28, *Q* 5–7.5 | −0.051 | −0.008 |
-| **median over nine cells** | **−0.050** | **−0.008** |
+| *W* 22–28, *Q* 2.2–3.3 | −0.135 | −0.045 |
+| *W* 22–28, *Q* 5–7.5 | −0.044 | −0.018 |
+| **median over nine cells** | **−0.044** | **−0.011** |
 
 For narrow γ*p-frame jets the two orderings agree, −0.001 against +0.015, both
 consistent with zero within the cell-to-cell scatter: a collimated object is
@@ -162,14 +166,14 @@ ordering effect is specific to wide objects.
 
 Repeating the identical cell comparison with the leading anti-kT jet clustered
 in the laboratory at *R* = 1.2, the radius EIC studies use, gives a median
-exponent of +0.011, against +0.22 for the inclusive lab-jet curve drawn behind
+exponent of +0.007, against +0.22 for the inclusive lab-jet curve drawn behind
 the cells (`beam_energy_labjet.pdf`): a plain lab cone of sensible size is
 already frame independent.  The same panel for soft-drop multiplicity in its
 standard form (`beam_energy_labjet_sd.pdf`) gives +0.007 against +0.13 for the
 inclusive curve: an IRC-safe observable, on lab momenta, in a lab cone, with
 nothing boosted, and it is flat.  At the *R* = 0.4 of the reference paper the
-exponent is +0.038, ranging to +0.14, with the lowest-energy configuration
-breaking away in the higher-*Q* cells (`ladder_vs_radius.pdf`).  The cause is
+exponent is +0.023, with the lowest-energy configuration breaking away in the
+higher-*Q* cells (`ladder_vs_radius.pdf`).  The cause is
 direct: a fixed small cone does not hold a fixed share of the current system.  At *Q* = 5–7.5 GeV the leading current jet
 carries 0.60 of the hemisphere's laboratory momentum at p_T = 2 GeV and 1.05 at
 p_T = 8 GeV, and above unity it is sweeping in the target side as well
@@ -246,13 +250,13 @@ Repeating the beam-energy ladder with n_SD in the e⁺e⁻ form gives a striking
 result, and it cuts both ways.
 
 *Where the observable is built in the colour frame, the two agree exactly:*
-−0.007 against −0.008 for the hemisphere, +0.016 against +0.015 for the γ*p
+−0.012 against −0.011 for the hemisphere, +0.016 against +0.015 for the γ*p
 jet.  That is as it must be — at fixed (*W*, *Q*) the colour-frame final state
 is identical, so any frame-defined observable is invariant.
 
 *Where the observable is built in the laboratory with an absolute opening-angle
-cut, n_SD is an order of magnitude worse:* −0.513 against −0.050 for the
-hemisphere, −0.430 against −0.001 for the γ*p jet, −1.48 against +0.038 for the
+cut, n_SD is an order of magnitude worse:* −0.513 against −0.044 for the
+hemisphere, −0.430 against −0.001 for the γ*p jet, −1.30 against +0.023 for the
 lab cone.  This is specific to the e⁺e⁻ form of the condition; Sec. 3.5 shows
 the standard pp form is flat in the lab.  In the longest-lever cell
 (*W* = 10–15, *Q* = 5–7.5 GeV) the lab-computed n_SD falls 1.85 → 1.02 → 0.10
@@ -478,15 +482,15 @@ frame independence:
 
 | leading lab jet | n₉₀ exponent | n_SD exponent, standard form | n_SD exponent, e⁺e⁻ form | ⟨N_const⟩ |
 |---|---|---|---|---|
-| *R* = 0.4 | +0.038 | +0.051 | −1.480 | 2.6 |
-| *R* = 0.8 | +0.035 | +0.029 | −0.545 | 4.1 |
-| *R* = 1.2 | +0.011 | +0.007 | −0.329 | 5.2 |
-| *R* = 1.6 | +0.003 | −0.004 | −0.302 | 6.1 |
-| *R* = 2.4 | −0.002 | −0.024 | −0.346 | 7.4 |
+| *R* = 0.4 | +0.023 | +0.040 | −1.302 | 2.6 |
+| *R* = 0.8 | +0.021 | +0.019 | −0.452 | 4.1 |
+| *R* = 1.2 | +0.007 | +0.007 | −0.366 | 5.2 |
+| *R* = 1.6 | −0.003 | −0.011 | −0.344 | 6.1 |
+| *R* = 2.4 | −0.007 | −0.020 | −0.320 | 7.4 |
 
 At the EIC-standard *R* ≈ 1 a laboratory cone is already frame independent for
 n₉₀ to about a percent, comparable to the γ*p-frame jet (+0.015) and the
-hemisphere (−0.008), and soft-drop multiplicity in its standard form tracks n₉₀
+hemisphere (−0.011), and soft-drop multiplicity in its standard form tracks n₉₀
 radius for radius.  On the beam-energy test the cone is therefore *not* the
 problem; the problems are running with no control at all (+0.277) and
 computing an opening-angle-cut observable in the laboratory (−0.3 to −1.5, at
@@ -564,7 +568,9 @@ effect.  All items are fixed on this branch.
   and *W* there rests entirely on the hadronic method at the edge of its
   resolution.  At 5 × 41 the *W* = 22–28 cells lie at *y* = 0.6–0.8, where the
   scattered electron carries only 1–2 GeV and must be separated from
-  photoproduction background.  The middle of the table, *y* between about 0.02
+  photoproduction background, and *W* itself is pinned against the kinematic
+  limit √s = 28.6 GeV; those three cells are excluded from the test throughout
+  this note.  The middle of the table, *y* between about 0.02
   and 0.5, is comfortable in every configuration; the *W* = 15–22 row is
   measurable in all three beams with standard methods, and even the extreme
   cells trade only lever arm, not the test itself.  *x* runs from 0.01 to 0.18
