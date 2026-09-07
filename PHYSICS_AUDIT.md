@@ -645,17 +645,62 @@ Checked on 2026-09-05.
   Breit-frame jet finding and yields.  None studies a fragmentation observable
   at fixed laboratory momentum as a function of *W*, and none proposes a
   beam-energy comparison at fixed colour-frame kinematics.
-* **HERA.**  ZEUS ([0803.3878](https://arxiv.org/abs/0803.3878)) and H1
-  ([hep-ex/9707005](https://arxiv.org/abs/hep-ex/9707005)) measured
-  multiplicities in the Breit current hemisphere against *Q* and in the γ*p
-  current region against *W*, testing universality against e⁺e⁻.  Those are
-  frame-corrected measurements designed to remove the boost; the test proposed
-  here uses the boost as the independent variable.  Breit-frame jet algorithms
-  for the EIC (Centauro, [2006.10751](https://arxiv.org/abs/2006.10751)) are
-  likewise a way to undo the boost.
-* HERA ran at essentially one beam-energy configuration for most of its life,
-  with a short low-energy run at the end; the EIC's three configurations with
-  comparable luminosity are what makes this test practical.
+* **HERA and fixed-target multiplicity measurements** (INSPIRE, checked
+  2026-09-05).  The dependence of charged multiplicity on *W* and *Q* is
+  established experimentally, always after boosting to a frame that removes the
+  laboratory:
+  * ZEUS, *Measurement of multiplicity and momentum spectra in the current
+    fragmentation region of the Breit frame at HERA*,
+    [hep-ex/9501012](https://arxiv.org/abs/hep-ex/9501012), Z. Phys. C 67 (1995)
+    93: ⟨n_ch⟩ in the Breit current hemisphere against *Q*, compared with e⁺e⁻
+    at √s = *Q*.
+  * H1, *Charged particle multiplicities in deep inelastic scattering at HERA*,
+    [hep-ex/9608011](https://arxiv.org/abs/hep-ex/9608011), Z. Phys. C 72 (1996)
+    573: multiplicity distributions and moments in the current fragmentation
+    region of the hadronic (γ*p) centre-of-mass frame, evolution with *W* and
+    *Q*², compared with fixed-target μN, e⁺e⁻ and hadron–hadron data.
+  * H1, *Evolution of ep fragmentation and multiplicity distributions in the
+    Breit frame*, [hep-ex/9707005](https://arxiv.org/abs/hep-ex/9707005),
+    Nucl. Phys. B 504 (1997) 3: current-hemisphere fragmentation function and
+    multiplicity against *Q*, compared with e⁺e⁻ at equivalent energy.
+  * ZEUS, *Measurement of multiplicity and momentum spectra in the current and
+    target regions of the Breit frame*,
+    [hep-ex/9903056](https://arxiv.org/abs/hep-ex/9903056), Eur. Phys. J. C 11
+    (1999) 251: evolution in *Q*² and *x* of both hemispheres; MLLA + LPHD
+    inconsistent with the data.
+  * ZEUS, *Multiplicity moments in deep inelastic scattering at HERA*,
+    [hep-ex/0104036](https://arxiv.org/abs/hep-ex/0104036), Phys. Lett. B 510
+    (2001) 36: moments at *Q*² > 1000 GeV² in restricted phase-space regions.
+  * H1, *Charged particle production in high Q² deep-inelastic scattering*,
+    [0706.2456](https://arxiv.org/abs/0706.2456), Phys. Lett. B 654 (2007) 148:
+    Breit-frame track multiplicity and scaled momenta, 100 < *Q*² < 20000 GeV².
+  * ZEUS, *Energy dependence of the charged multiplicity in deep inelastic
+    scattering at HERA*, [0803.3878](https://arxiv.org/abs/0803.3878), JHEP 06
+    (2008) 061.  The closest precedent to the present question: ⟨n_ch⟩ measured
+    in the Breit current region and in the γ*p current fragmentation region,
+    and its energy dependence studied *using different energy scales* (*Q*, the
+    energy of the current region, *W*), against e⁺e⁻.  That paper asks which
+    invariant scale governs the multiplicity; it does not vary the laboratory
+    frame at fixed scale.
+  * EMC, *Hadron multiplicity variation with Q² and scale breaking of hadron
+    distributions in deep inelastic muon-proton scattering*, Phys. Lett. B 165
+    (1985) 222, and *Multiplicities of charged hadrons in 280 GeV/c muon-proton
+    scattering*, Nucl. Phys. B 258 (1985) 249: multiplicity rising with *Q*² at
+    fixed *W*, and with *W* from 4 to 20 GeV.  The two-scale character of DIS
+    multiplicity was established here.
+
+  All of these remove the laboratory by construction and then ask how the
+  result depends on invariant scales.  None uses the laboratory boost itself as
+  the independent variable, which is what the beam-energy comparison does, and
+  none addresses an observable, such as n₉₀, whose definition is not boost
+  invariant.  Breit-frame jet algorithms for the EIC (Centauro,
+  [2006.10751](https://arxiv.org/abs/2006.10751)) are likewise ways to undo the
+  boost.
+* HERA ran at essentially one beam-energy configuration for most of its life.
+  The 2007 runs at reduced proton energy (460 and 575 GeV) were used for F_L;
+  an INSPIRE search finds no H1 or ZEUS hadronic-final-state or multiplicity
+  measurement that compares them with the 920 GeV data.  The EIC's three
+  configurations with comparable luminosity are what makes this test practical.
 
 No prior proposal of a beam-energy frame-independence test of fragmentation was
 found.
